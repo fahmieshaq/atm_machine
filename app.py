@@ -28,7 +28,7 @@ import ws_stoporder, ws_kline # keep these two imports last because imports run 
 #                  This main program, classes, and function are catered to handle one position only and won't allow you to open
 #                  a second position as long as you have an open position in your platform. Do not use this
 #                  program for managing multiple trades at once; it won't work. Instead, you'd need to develop another program
-#                  for multiple trades. I chose to handle one open position at a time for risk management.
+#                  for multiple trades. I chose to handle one open position at a time for risk management...
 
 # Setup flask
 app = Flask(__name__)
@@ -82,7 +82,7 @@ def webhook():
 
     # Verify password
     if tradingview_alert['passphrase'] != keys.TV_ALERT_PASSPHRASE:
-        msg = 'CRITICAL: WARNING, your tradingview passphrase is malformed.'
+        msg = 'CRITICAL: WARNING, your tradingview passphrase is malformed!'
         telegram_send.send(messages=[msg])
         return {'code': 'error', 'message': msg}
 
@@ -500,7 +500,7 @@ if __name__ == "__main__":
             config.run_ws_flag = False
         else:
             pass # Ignore. We don't have an active websocket
-    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=True) # Sometimes its better to set realoder to False. Re-loader 
+    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=False) # Sometimes its better to set realoder to False. Re-loader 
                                                                # is useful if you don't want to re-run local server after every change
                                                                # However, re-loadeder tends to double execute main() commands after 
                                                                # saving every code modification
