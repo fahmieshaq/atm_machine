@@ -1,0 +1,407 @@
+--------------- Chat Experts -------------
+
+FanKai is good. 
+Taha is good. Taha is in the afternoon shift EST. 7.30PM EST.
+
+B.T. is a trader.
+
+Said not good. 
+Mark not good
+Olcar is beginner, he is honest and redirected me to senior colleague - 2AM EST
+Wills is good but somewhat slow in response - 2AM EST
+
+Gene is good. He is trader 6PM EST
+
+Cath - 6.30AM EST Sat - bad
+Dongmin - 6.30AM EST Sat - bad
+
+--------------- Order Book ----------------
+
+Watch my video: https://youtu.be/NLl_UClQlEA
+
+Please refer to the image BybitOrderBook.png
+
+Lowest ask price gets picked for long order - 31,698.5 (the first record)
+Highest bid price gets picked for short order - 31,681 (the first record)
+
+So if you buy 5 BTC, it will stop on the 3rd tier. Since our example fills at 3rd tier and 3rd tier is not the best ask (lowest) prcie, then you can say our order slipped through
+multiple ask prices to the point where our order qty for fully fulfilled. In short, price slippage if the order quantity is unable to 
+fully filled at the best ask price immediately upon order placement. There is no such thing called slippage fee. When your order gets filled at multiple ask prices, you get charged
+taker fee for each tier your order gets filled at.
+
+So our order got filled with three ask prices ask1 then ask2 then ask3 as explained in the video.
+
+Note that Quantity(BTC) doesn't represent one trader only, the quantity reflects te available qty at that price overall combined of all traders.
+
+API for printing order book, it gives you 25 records (aka 25 dept) back:
+https://api-testnet.bybit.com/v2/public/orderBook/L2/?symbol=BTCUSDT
+
+Gives you back a response such as
+
+{
+    "symbol": "BTCUSDT",
+    "price": "29770.5", -----> The first top price that show up in response for "side": "Buy"
+    "size": 10, -----> Quantity(BTC)
+    "side": "Buy" -------> means Bid Price. Used for short orders
+}
+
+{
+    "symbol": "BTCUSDT",
+    "price": "29774.5", -----> The first top price that show up in response for "side": "Sell"
+    "size": 10.02, -----> Quantity(BTC)
+    "side": "Sell" -------> means Ask Price. Used for long orders
+}
+
+If you want to get the current price to estimate your limit order price, you could 
+use below API which is to get latest symbol information including ask1 price, bid1 price
+
+https://api.bybit.com/v2/public/tickers?symbol=BTCUSDT
+
+"result": [
+{
+"symbol": "BTCUSDT",
+"bid_price": "31749",  ---> the higest bid price. I validated it manually by running API in postman and refrshing order book on the platform and taking screenshots. It matched exactly.
+"ask_price": "31749.5", ---> the lowest ask price. I validated it manually by running API in postman and refrshing order book on the platform and taking screenshots. It matched exactly.
+"last_price": "31749.00",
+.....}
+
+The above API is the same as https://bybit-exchange.github.io/docs/inverse/#t-latestsymbolinfo
+
+print(session.latest_information_for_symbol(
+    symbol="BTCUSD"
+))
+
+*** FYI, For Technical API Questions, Look for this email RE: API QUESTION (at Wed, Jun 1, 5:09 AM) and reply to it. Its in Gmail Tasks list.
+
+General info about ASK PRICE and BID PRICE
+
+The ask price, on the other hand, refers to the lowest price that the owners of that security are willing to sell it for. If, for example, a stock is 
+trading with an ask price of $20, then a person wishing to buy that stock would need to offer at least $20 in order to purchase it at today's price.
+Ask price, also called offer price, offer, asking price, or simply ask, is the price a seller states they will accept. 
+
+A bid price is a price for which somebody is willing to buy something, whether it be a security, asset, commodity, service, or contract.
+
+Yes, the order book shows the real-time outline of buyers and sellers awaiting execution.
+The executed orders does not have an order book. They are removed from the ask/bid prices when after execution.
+Only Limit/Conditional Limit orders go into the order book. Your conditional limit order enters the order book when the Trigger Price is met and your Conditional Limit order becomes 
+active pending for execution of the Limit Order Price.
+
+To find Q&A I had with ByBit customer support, check Gmail "[Bybit] Your case number is #00605948" at Sun, Jun 5, 2022, 5:45 PM its a series of communication up to Mon, Jun 6, 2:42 PM
+
+---------------- Taker Fee and Marker Fee ----------------
+
+Lets assume you made a market order, a taker fee will be changed when opening order. If you close an order using marker order, you'll also get 
+charged taker fee on closing order.
+
+The same rates apply for both and the calculation is similar as well: quantity*executed price*fee rate whereas executed price could entry price
+or closing price.
+
+- For opening order: Entry price*quantity*fee rate
+- For closing order: Exit price*Quantity*Fee rate
+
+Entry price and Exit price is the market price. Market price is Last Traded Price (LTP).
+
+The direction (Long or Short) of the trade does not influence the fee. 
+
+------------------ About Limit Orders --------------------
+
+When a limit order is executed immediately upon placement, the order will not fill the order book as it has directly taken liquidity from the books. Meanwhile, 
+immediately executed limit order would not prevent the slippage. You'll be charged taker fee for immediately executed limit orders.
+
+lets say you purchase 1 BTC but will broken into multiple transaction at
+
+0.1 BTC @ 30000 * 0.06% (that is .0006) ---> Qty * Ask Price * Fee = $1.8 fee
+0.5 BTC @ 31000 * 0.06% ---> $9.3 fee
+0.4 BTC @ 32000 * 0.06% ---> $7.78 fee
+Total fees $18.88 fee
+
+If you order got placed right at the best ask price1, you'd have paid a little lower price 1 BTC @ 30000 * 0.06%  ---> $18.00. So the bigger
+the gap between prices in the order book, the higher fees you may end up paying when your order gets slips into multiple orders. The closer the gap 
+between order prices, the lower fees you pay when you encounter slippages. The above example, gives you the difference of 0.88 cents for encountering
+slippage. Nevertheless, closer the gap means the higher liquidity in the platform and you will not face much big fee impact when your market order
+slips into multiple ask/bid price tiers.
+
+Example of big gap:
+
+0.1 BTC @ 30000 * 0.06% (that is .0006) ---> Qty * Ask Price * Taker Fee = $1.8 fee
+0.5 BTC @ 37000 * 0.06% ---> $11.10 fee
+0.4 BTC @ 42000 * 0.06% ---> $10.08 fee
+Total fees is $22.98 
+
+As you see, the order book had big gaps and our order had to fill up across these large gapped tiers. As a result, you paid higher fee $22.98 than if your
+order got filled fully 1BTC @ 30000 * 0.06%, you'd have paid $18 only. That's what people so called slippage fees, its just a term people use but there is no
+such a thing called SLIPPAGE FEE applied by the broker.
+
+When does limit order execute immediately? If market price is $10 and you place a limit order for buy at price higher than market price e.g. $15. At this point,
+ByBit will immediately execute your limit order because you'd have hit the lowest ask price which is less than your target price $15. For buy limit order, you
+ideally have to put a price lower than the market price e.g $8 so when the market drops to $8 or less, your order get filled; that's the proper way of
+placing limit order that puts your order request in the order book and protects you from slippage When enter the order book, you'll be charged maker fee when
+order gets triggered.
+
+For limit orders, your order will be filled filled by last traded price. Limit orders that do not get immediately executed end up getting marker fee during
+order execution. Maker fee is much much lower than taker fee. Maker fee is 0.01%. To totally avoid slippage, I suggest limit orders, which is not only cheaper, but 
+does not have slippage, but might take some time to be executed. 
+
+- If the Limit order is executed immediately it will incur a taker fee. 
+- On the other hand, if the Limit order enters the order book and becomes "Active"(order gets executed) it will 
+incur a Maker fee (0.01%). No fees will be incurred until the execution of the order.
+
+
+If market price is $10 and I want to place a long limit order at $13 because I want to avoid slippage, is that fine?
+Unfortunately that will not be possible. A long order means that you wish to Buy at a low price and Sell when the price increases. If you use a limit order to purchase at $13 while the current Market price is $10 the $13 limit order will be executed immediately at $10 since the system detects that the market price is more advantageous for you. 
+To set up a Limit Order, the order price needs to be better (lower) than the Last traded price. 
+
+
+----------------- Conditional Market Order ----------------
+
+Conditional Market Order acts just like market order. You get charged taker fee when conditioanl market order gets executed.
+
+Conditional orders are queries that request the system to create a Market or a Limit order at a given Trigger Price. 
+Since the market order is executed immediately after activation of the conditional order it will incur the Taker fee. 
+
+Can conditional limit order help me place target price higher than the current market price e.g If market price 
+is $10, I place a long limit order at $13?
+
+That is correct! But conditional limit orders carry a risk since the execution is tied to two conditions: 
+In this scenario, you will please need to set a conditional Trigger Price of $14 and an Limit Order Price of $13. In this way, once the market 
+price reaches $14 the conditional order will activate and the Limit order will enter the order book at $13 and wait for the price to 
+go back down to $13. Otherwise, if the conditional trigger and limit order price are both at $13, the limit order will be executed immediately 
+and the taker fee will be applied instead of the maker fee. The risk is if the trade hits $14, there is no guarantee it'll retrace back.
+The only guaranteed option is to use Market or conditional market orders.
+
+----------------- Minimize Slippages --------------------
+
+Slippage is inevitable during fast-paced trading when you’re trying to execute orders quickly. However, you can minimize negative slippage by: 
+
+1. Splitting your orders. Rather than trying to execute a single large order immediately, split it into smaller units. Closely monitor the order book 
+to spread out your orders, and avoid placing orders larger than the available volume allows. ----> Fahmi Note: KEY POINT! When I trade live, my BTC qty 
+probably would be 0.047 so 99% of the time I wouldn't face slippage in live market, why? Watch my video explaining why https://youtu.be/LPCIgfkobfs
+
+2. Using Limit orders. These ensure you get your expected buy or ask price — or even better. Limit orders may not be fast, and you 
+could miss cashing out on some transactions. But they ensure you won’t suffer any negative slippage. 
+
+Positive Slippage:
+Slippage isn’t always bad for business. Positive slippage occurs when you place a buy order and the asset price decreases. That is, the final execution 
+price is lower than expected for your buy market order. Similar positive slippage occurs when you make a sell order and the price increases. If the 
+final execution price is better than the expected one, your positive slippage actually results in a more favorable trade for you.
+
+Negative Slippage:
+Negative slippage is a major concern for any trader. If the price of an asset increases after placing a buy order, or reduces after you enter a 
+sell order, you may face negative slippage.
+
+
+----------------- Track order history -------------------
+
+bybit.com/user/assets/order/trade-history/usdt
+
+Every fee charged reflects on that page. If you think you've been charged too much, feel free to come to livechat and we will audit it. 
+
+----------------- Make Sure Your Timestamp is Aligned with ByBit Server. Do I have to adjust my server timezone? what timezone bybit uses? -----------------
+
+"timestamp" is referring to unix timestamp which is the same across the world regardless of timezone. There is no need to change your timezone to 
+match Bybit's timezone. You should find that when you generate a timestamp in any programming language, for example in python with time.time(), it will 
+be the same regardless of your server's timezone.
+
+The role of the timestamp is to make sure your request did not take too long to reach our servers. You can use NTP in the terminal 
+to sync your time or if testing from a development machine you can Google "how to sync time with {OS}".
+
+---------------- Additonal Tips about API ----------------
+
+Sometimes when you call an API, you get this error below due to high latency, you basically sent your API request but the server
+hasn't responded yet as per recv_window threshold. As a result, you get an error below. Hence, recv_window is set in HTTP() when connecting to the server.
+
+
+2022-05-26 00:12:16 - pybit._http_manager - ERROR - invalid request, please check your timestamp and recv_window param. 
+req_timestamp: 1653538335759 server_timestamp: 1653538355492 recv_window: 5000 (ErrCode: 10002). Added 2.5 seconds to recv_window. 2 retries remain.
+
+2022-05-26 00:12:19 - pybit._http_manager - ERROR - invalid request, please check your timestamp and recv_window param. 
+req_timestamp: 1653538339460 server_timestamp: 1653538358758 recv_window: 7500 (ErrCode: 10002). Added 2.5 seconds to recv_window. 1 retries remain.
+
+2022-05-26 00:12:22 - pybit._http_manager - ERROR - invalid request, please check your timestamp and recv_window param. 
+req_timestamp: 1653538342727 server_timestamp: 1653538362015 recv_window: 10000 (ErrCode: 10002). Added 2.5 seconds to recv_window. 0 retries remain.
+
+ByBit tech team said:
+
+From the error, I think it is highly because of the network instability. Make sure to
+call bybit-server time api to check if there is a high latency.
+
+How do you find out if you have high latency? Call /v2/public/time ttps://bybit-exchange.github.io/docs/linear/#t-servertime. In other words,
+call self.session.server_time() and then compare the bybit server time and your localtimestamp to find the difference.
+If it is high, you are encountering a high latecy between your network to bybit server, which is located at Singapore AWS.
+
+Bybit servers are located in AWS ap-southeast-1 region (Singapore, Asia Pacific). AWS Singapore, Availability Zone ID apse1-az3.
+
+~ The response below is DevOps tech related. Let DevOps guy look into it:
+
+"timestamp" is referring to unix timestamp which is the same across the world regardless of timezone. 
+There is no need to change your timezone to match Bybit's timezone. You should find that when you generate a 
+timestamp in any programming language, for example in python with time.time(), it will be the same regardless of your server's timezone.
+The role of the timestamp is to make sure your request did not take too long to reach our servers. You can use NTP in the terminal 
+to sync your time or if testing from a development machine you can Google "how to sync time with {OS}".
+
+***** TradingView uses ByBit's mainnet chart as told by ByBit API tech support ******
+
+------------ How to close a position via API --------------
+
+For example, lets say you placed a BUY market order:
+
+session.place_active_order(
+                symbol='BTCUSDT',
+                side='Buy',
+                qty=0.035,
+                order_type='Market',
+                time_in_force='GoodTillCancel',
+                stop_loss=22000,
+                reduce_only=False,
+                close_on_trigger=False,
+            )
+
+And now you changed your mind and you planned to close it! What should you do? Simply, open an opposite SIDE AND set reduce_only to True
+
+session.place_active_order(
+                symbol='BTCUSDT',
+                side='Sell', ### 1. Use the opposite side. Since we placed a Buy order, to close it simply add Sell
+                qty=0.035, ### 2. The qty should be same as the one you used when you placed the order above. Don't change it. If you do change qty to something else like 0.015, then 0.015 will be CLOSED only out of 0.035 so remaining open position would be 0.030
+                order_type='Market',
+                time_in_force='GoodTillCancel',
+                stop_loss=22000,
+                reduce_only=True, ### 3. Set it to TRUE.
+                close_on_trigger=False,
+            )
+
+Your order will be closed. I tested it, it worked as expected.
+
+FYI, in the response, you are going to a see 'price' value. The price returned 
+here is that internal price value. Market orders are technically (in the backend) just limit orders submitted at a worse price in the internal 
+system to reduce the chance of executing the order at very bad price For example, if you use Marker Order to buy 
+at $10k. place_active_order would internally make a limit order of a high price like $25k and then your order
+anyway would get executed immediately because current price $10k is better than $25k, so 
+market order will be filled with nearest corresponding limit order. So it's fill price can be any depending on the ask price in the
+orderbook. Literally if there will be nothing till 55000$ you will buy at 55000$, but in our case, place_active_order placed a limit of $25k so in worst case
+scenarios our order will be filled at $25k entry which is still bad price comparison to our expected entry $10k. Nevertheess, $25k
+is not worse than $55k entry. In other words, the internal price value represents the limit order price that place_active_order makes for us. Why ByBit does this?
+To avoid a flash crash/spike situations! It simply protects buyers from getting sigficantly off entry price during sudden spike/fall. What is flash crash? A flash 
+crash is a very rapid, deep, and volatile fall in security prices occurring within a very short time period followed by a quick recovery.
+
+If you want the true market order execution, would recommend subscribing to the execution Web Socket. 
+
+----------------------- An Alternatvie Solution to Python Threads -----------------
+
+# multiprocessing allows you to start and kill processes from outside. For some reason threading library
+# doesn't easily allow you to kill it from outside; you can exit the thread from inside but there is a clear
+# cut solution to kill it from outside. Howevever, multiprocessing library gives you the luxury to stop/kill
+# a process from outside. See multipleprocessing example below:
+
+# source - https://www.delftstack.com/howto/python/python-kill-thread/
+@app.route("/webhook4", methods=['POST'])
+def webhook4():
+    import multiprocessing
+    import time
+    def cp(v1):
+        print(v1)
+        while True:
+            for i in range (20):  
+                print ('Process: ', i)
+                time.sleep(0.05)
+    print('start process')
+    x = multiprocessing.Process(target = cp, args=('test',))
+    x.start()
+    print('process started an sleep for 3 seconds')
+    time.sleep(3)
+    x.terminate()
+    print("Terminated the process")
+    return {'code': 'success', 'message': 'Order executed! Done.'}
+
+
+------------------------------------------------------
+
+Subaccount: feshaq
+Fahmi123456
+
+    # Solution of syncing local time with bybit server 
+    # Check this answer: f1yn commented on Aug 16, 2019
+    
+NTP
+Sync time: https://github.com/microsoft/WSL/issues/4149
+
+
+        print(msg.get('data')[0].get('stop_order_id')) ### print stoporder  id, order_status triggered or not.... 715b48b8-e8af-4762-8a5f-bdb5151d760e
+        print(msg.get('data')[0].get('trigger_price'))
+        print(msg.get('data')[0].get('qty'))
+        print(msg.get('data')[0].get('order_status')) # Untriggered ... or .... Triggered
+        print('---------------------------------------')
+
+
+
+
+
+        # print('Available_balance: ' + str(available_balance))
+        # print('Risk amount: ' + str(risk_amount))
+        # print('Leverage: ' + str(leverage))
+        # print('Position margin: ' + str(position_margin))
+        # print('Possible entry price (lowest ask from latest symbol): ' + str(possible_entry_price))
+        # print('My qty: ' + str(my_qty))
+        # print('Actual entry price from order book: ' + str(actual_entry_price))
+        # print('SL Price: ' + str(sl_price))
+        # print('Mark SL Price: ' + str(sl_mark_price))
+        # print('Liq Price: ' + str(liq_price))
+        # print('Distance between SL vs Liq Price: ' + str(sl_vs_liq_gap))
+        # print('Distance between Mark SL vs Liq Price: ' + str(mark_sl_vs_liq_gap))
+
+
+####
+https://computingforgeeks.com/installing-postgresql-database-server-on-ubuntu/
+https://linuxhandbook.com/system-has-not-been-booted-with-systemd/
+Use sudo service postgresql start 
+instead of systemctl
+
+https://www.digitalocean.com/community/tutorials/how-to-use-a-postgresql-database-in-a-flask-application
+
+Houssame Majd2:50 PM
+https://tools.ietf.org/doc/python-migrate/html/versioning.html#create-a-change-script
+
+https://sqlalchemy-migrate.readthedocs.io/en/latest/versioning.html#making-schema-changes
+
+psql -d mydb -U myuser
+
+
+print ('type is:', e.__class__.__name__)
+message = template.format(type(ex).__name__, ex.args)
+
+----------------------------------
+
+    from datetime import datetime, timedelta
+    # Solution of syncing local time with bybit server https://github.com/microsoft/WSL/issues/4149
+    # Check this answer: f1yn commented on Aug 16, 2019
+    def sync_time(self):
+        # You need to call sudo
+        os.system('ntpdate -sb time.nist.gov') # You'll need install it first: sudo apt install ntpdate
+        # os.system('sudo ntpdate -sb time.nist.gov')
+
+        ##### This logic sync time only if local time has drifted from bybit server time
+        # bybit_server_time = self.session.server_time().get('time_now')
+        # bybit_server_time = int(float(bybit_server_time))
+        # #print(datetime.utcfromtimestamp(bybit_server_time).strftime('%Y-%m-%d %H:%M:%S')) --> converts unix time to a readable format
+
+        # local_server_time = int(time.time())
+        # #print(datetime.utcfromtimestamp(local_server_time).strftime('%Y-%m-%d %H:%M:%S')) --> converts unix time to a readable format
+
+        # if local_server_time == bybit_server_time:
+        #     pass
+        # else: 
+        #     os.system('ntpdate -sb time.nist.gov') # You'll need install it first: sudo apt install ntpdate
+------------------------------------
+
+        # print('~~~~~~!!!~~~~~~~~~')
+        # est_timezone = pytz.timezone('US/Eastern')
+        # print(exg_executed_at)
+        # exg_executed_at = datetime.strptime(exg_executed_at, '%Y-%m-%dT%H:%M:%SZ')
+        # print(exg_executed_at.astimezone(est_timezone).strftime("%Y-%m-%d %H:%M:%S"))
+        # print('~~~~~~~~~~~~~~~')
+
+    # est_timezone = pytz.timezone('US/Eastern')
+    received_at = datetime.strptime(received_at, '%d/%m/%Y %H:%M:%S')
+            # print('~~~~~~~~~~~~~~~')
+    # print(received_at)
+    # print(received_at.astimezone(est_timezone).strftime("%Y-%m-%d %H:%M:%S"))
+    # print('~~~~~~~~~~~~~~~')

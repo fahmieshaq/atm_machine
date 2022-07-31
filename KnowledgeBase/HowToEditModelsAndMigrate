@@ -1,0 +1,20 @@
+1. When you create models.py for the first time, you need to do $ flask db init ---> create migrations folder
+and then do $ flask db migrate ---> migrates whatever in migrations folder to db you specified in database uri 'postgresql://dbuser:123456@localhost/atm_machine'
+Finally, do
+
+$ flask db upgrade
+
+2. Whenever you update models.py, you first have to migrate $ flask db migrate ---> migrates new changes
+and then you need to call $ flask db upgrade ---> to push your changes to postgres
+
+If you keep getting errors upgrading postgres with your new changes, do:
+
+$ flask db stamp head ---> To set the revision in the database to the head, without performing any migrations. You can change head to the required change you want.
+$ flask db migrate
+$ flask db upgrade
+
+To validate whether your changes moved to postgres or not, access the database under the username of database URI:
+
+(atm-machine-iQtW-nJS-py3.8) fahmi@DESKTOP-Q13G500:/mnt/c/users/owner/desktop/atm_machine$ psql -d atm_machine -U dbuser -W -h 127.0.0.1
+atm_machine=> \dt ---> list all tables
+atm_machine=> \d+ tv_alert ---> list all columns of a table

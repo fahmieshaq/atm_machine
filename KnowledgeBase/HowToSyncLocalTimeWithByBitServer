@@ -1,0 +1,36 @@
+This note below is taken from G:\My Drive\Crypto (AlgoTrading TradingView)\(2) AlgoTrading\ByBit\PythonSteps (Official).docx:
+
+# 
+First, make sure you install ntpdate
+$ sudo apt install ntpdate   ------> source: https://github.com/microsoft/WSL/issues/4149
+
+Second, run
+$ sudo ntpdate -sb time.nist.gov   ------> source: https://github.com/microsoft/WSL/issues/4149
+
+If you don’t sync your wsl2 time with unix, your ByBit API calls won’t work consistently; you’d be getting timeout errors. You must sync your WSL local with unix and as a result, your local WSL time would be synced with ByBit server time as well cause ByBit server time is aligned with unix time. In short, our local wsl time must align with bybit server time cause with every API call, our local time gets sent with our request, so if our time is off by like 20 seconds, bybit server thinks a timeout occurred cause we are already off 20 seconds from bybit server, so bybit server sends our time our error or so.
+Run sudo ntpdate -sb time.nist.gov each time you want to correct the drift, or lets run it automatically every minute.
+Open WSL command from Windows OS and login as superuser
+Login as root $ sudo su
+Then lets find out where ntpdate is stored within our filesystem
+root@DESKTOP-Q13G500:/mnt/c/Windows/system32# which ntpdate
+/usr/sbin/ntpdate
+Now lets run our ntpdate command automatically every minute:
+root@desktop-q13g500/mnt/c/Windows/system32# crontab -e
+You may get the message below IF you never run crontab command.
+Select an editor.  To change later, run 'select-editor'.
+  1. /bin/nano        <---- easiest
+  2. /usr/bin/vim.basic
+  3. /usr/bin/vim.tiny
+  4. /bin/ed
+Choose 1-4 [1]: 1
+crontab: installing new crontab
+Inside the editor, put command below and ctrl + X then save.
+* * * * * /usr/sbin/ntpdate -sb time.nist.gov
+
+We didn’t put the keyword sudo because we are running the cron inside root’s user, so we don’t need sudo.
+What does * * * * *  mean? Check https://crontab.guru/ ... In short, 5 4 * * * means run the job everyday at hour 4 and minute 5.
+
+If you put five asterisks, it means run the cron job every minute every day.
+If you just want to see what jobs do you have inside crobtab, do:
+root@DESKTOP-Q13G500:/mnt/c/Windows/system32# crontab -l
+

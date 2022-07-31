@@ -1,0 +1,51 @@
+************************** Summary *************************
+
+Login admin: $ sudo su - postgres
+             postgres@DESKTOP-Q13G500:~$ psql -l
+             postgres@DESKTOP-Q13G500:~$ psql atm_machine
+             atm_machine=# \dt ---> all tables in db
+             atm_machine=# \d tv_alert ----> view table structure
+Login non-admin: $ psql -d atm_machine -U dbuser -W -h 127.0.0.1
+
+To connect with pgAdmin4 UI via Windows, refer to G:\My Drive\Crypto (AlgoTrading TradingView)\(2) AlgoTrading\ByBit\PythonSteps (Official).docx
+
+************************** Details *************************
+
+Source: https://computingforgeeks.com/installing-postgresql-database-server-on-ubuntu/
+
+Start postgres:
+  service postgresql start
+  or
+  service postgresql restart
+Confirm process is running:
+  service postgresql status
+Login as superuser:
+  sudo su - postgres
+To login as non-superuser assuming your non-superuser is dbuser and he is associated with atm_machine:
+  (sqltest-W3KXXuO_-py3.8) fahmi@DESKTOP-Q13G500:/mnt/c/users/owner/desktop/sqltest$ psql -d atm_machine -U dbuser -W -h 127.0.0.1
+Now reset superuser password:
+  psql -c "alter user postgres with password 'MySt0ngDBP@ss'"
+Now create a non-superuser:
+  createuser dbuser
+Now create the database atm_machine and assign it to the non-superuser:
+  createdb atm_machine -O dbuser
+Now get into the database:
+  psql atm_machine
+Now set the password for the non-superuser:
+  alter user dbuser with password '123456';
+Now exit the database:
+  \q
+Want to drop non-superuser?
+  Dropping user has to happen on superuser postgres shell.
+  postgres@DESKTOP-Q13G500:~$ dropuser dbuser2
+View all databases and see which user belongs to which database:
+  In wsl, do $ sudo su - postgres
+  postgres@DESKTOP-Q13G500:~$ psql -l
+Drop a database:
+  postgres@DESKTOP-Q13G500:~$ psql
+  postgres=# drop database atm_machine;
+View all tables in a database:
+  postgres@DESKTOP-Q13G500:~$ psql atm_machine
+  atm_machine=# \dt
+View all columns in a table:
+  atm_machine=# \d+ <table_name>
