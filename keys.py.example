@@ -1,0 +1,7 @@
+# keys.py must be created locally and ignored throughout devops pipeline
+TESTNET_API_KEY = '######'
+TESTNET_API_SECRET = '######'
+LIVE_API_KEY = '######'
+LIVE_API_SECRET = '######'
+TV_ALERT_PASSPHRASE = '######'
+DB_URI = 'postgresql://user:password@hostEndpoint/databaseNmae'
