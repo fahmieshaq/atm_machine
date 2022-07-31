@@ -82,7 +82,7 @@ def webhook():
 
     # Verify password
     if tradingview_alert['passphrase'] != keys.TV_ALERT_PASSPHRASE:
-        msg = 'CRITICAL: WARNING, your tradingview passphrase is malformed!'
+        msg = 'CRITICAL: WARNING, your tradingview passphrase is malformed.'
         telegram_send.send(messages=[msg])
         return {'code': 'error', 'message': msg}
 
