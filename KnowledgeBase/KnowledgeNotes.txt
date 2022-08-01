@@ -380,7 +380,7 @@ message = template.format(type(ex).__name__, ex.args)
 
         ##### This logic sync time only if local time has drifted from bybit server time
         # bybit_server_time = self.session.server_time().get('time_now')
-        # bybit_server_time = int(float(bybit_server_time))
+        # bybit_server_time = int(Decimal(bybit_server_time))
         # #print(datetime.utcfromtimestamp(bybit_server_time).strftime('%Y-%m-%d %H:%M:%S')) --> converts unix time to a readable format
 
         # local_server_time = int(time.time())

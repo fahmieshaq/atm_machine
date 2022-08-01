@@ -1,4 +1,4 @@
-from ast import arg
+from decimal import Decimal
 from symtable import Symbol
 from sys import api_version
 import json
@@ -49,20 +49,10 @@ available_balance = 0.0
 # Fyi, order type LONG or SHORT (tradingview_alert['type']) has to be changed from the tradingview alert json request
 debug_leverage_val=1
 debug_my_qty_val=0.035
-debug_sl_price_val=23889
+debug_sl_price_val=23307
 
 # The moment you initiate the app, connect to the exchange
 config.exchange = ByBit()
-
-@app.route("/webhook1", methods=['POST'])
-def webhook1():
-    from decimal import Decimal
-    print(float(1234567890))
-    print(float(12345678901234567)) # limit - 1234567890123456
-    v = Decimal(1234567890123456.1143543534534)
-    print(v)
-
-    return {'code': 'error'}
 
 # This webhook receives tradingview alert json request. We process the json request and place an order in the exchange
 # This webhook takes one alert at a time only and it never processes an alert if we already have an open position. Also,
@@ -94,9 +84,9 @@ def webhook():
         try:
             config.exchange.compare_local_time_with_exchange_server_time()
             msg_is_debug_mode = '[DEBUG MODE: True] '
-            leverage=debug_leverage_val
-            my_qty=debug_my_qty_val
-            sl_price=debug_sl_price_val
+            leverage=debug_leverage_val # This will take affect if SKIP_VALIDATION is set to True
+            my_qty=debug_my_qty_val     # This will take affect if SKIP_VALIDATION is set to True
+            sl_price=debug_sl_price_val # This will take affect if SKIP_VALIDATION is set to True
         except Exception as e:
             print('Disconnected from bybit server due to this exception: ' + str(e))
     
@@ -105,6 +95,18 @@ def webhook():
     received_at_est = datetime.strptime(tradingview_alert['time'], '%d/%m/%Y %H:%M:%S') # convert alert datetime from string to datetime object
     received_at_utc = received_at_est.astimezone(pytz.utc).strftime("%Y-%m-%d %H:%M:%S") # tradingview_alert['time'] comes in EST timezone. Lets convert it to UTC
     received_at_utc = datetime.strptime(received_at_utc, '%Y-%m-%d %H:%M:%S') # Convert UTC string datetime back to datetime object
+
+    # Get generic data that we'll need through our risk management calculations. Tick size and price scale (aka max decimal)
+    # are important for determing up to how many decimals your symbol takes. For example, if you trade BTCUSDT and you
+    # place an active order with a stoploss of 30,000.534423432, your api will fail because BTCUSDT does not permit
+    # that many decimals. To know the max decimal per symbol, you need to get price scale from ByBit and use
+    # price scale as max decimal limit for the symbol you are trading with. For example, SHIB1000USDT has a tick
+    # size of 0.000005 USDT and its price scale is 6 (you get price scale from an API call), so when you open
+    # position with SHIB1000USDT, make sure whatever price you pass such as stoploss, limit entry price, etc has
+    # covers up enough decimal up of price scale.
+    tick_size, price_scale = config.exchange.get_tick_size(symbol=tradingview_alert['symbol'])
+    config.tick_size=Decimal(tick_size)
+    config.max_precision=int(price_scale)
 
     # If you don't have an open position in the platform AND we have open websockets, kill your active websockets if any exist
     # so your new alert trade starts clean without any residual data from previous alert's websockets.
@@ -169,7 +171,7 @@ def webhook():
             return {'code': 'error', 'message': msg}
         
 
-        risk_amount = available_balance * config.RISK_PERCENTAGE # Determine your risk amount in dollars
+        risk_amount = available_balance * Decimal(config.RISK_PERCENTAGE) # Determine your risk amount in dollars
         models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, 
                                                 exg_avail_balance=available_balance,
                                                 my_risk_perc=config.RISK_PERCENTAGE,
@@ -189,6 +191,8 @@ def webhook():
             # You can go back as many candles as you want by inserting the candle index in the previous_candle_index parameter.
             # sl_price first return value gives you the middle of the candle between open and close.
             # is_candle_green refers to the candle of our previous_candle_index value.
+            # Warning: get_1_min_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_1_min_candle_info()
+            # you have to test it in live environment not testnet; for testing it in live server, just go to TESTNET_FLAG and set it to False
             mid_price, open, close, high, low, is_candle_green, \
             mid_mprice, open_m, close_m, high_m, low_m, is_candle_green_m = config.exchange.get_1_min_candle_info(symbol=tradingview_alert['symbol'], previous_candle_index=2)
 
@@ -219,7 +223,7 @@ def webhook():
                 models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_qty=my_qty, notes=msg)
                 return {'code': 'error', 'message': msg}
 
-            my_init_ep_sl_gap = abs(float(last_price) - float(sl_price))
+            my_init_ep_sl_gap = abs(Decimal(last_price) - Decimal(sl_price))
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_qty=my_qty, my_init_ep_sl_gap=my_init_ep_sl_gap,
                                                     notes=msg_is_debug_mode + '[Passed] calculate_crypto_required_qty()')
 
@@ -265,7 +269,7 @@ def webhook():
                                                         my_slippage_counter=config.slippage_counter)
                 return {'code': 'error', 'message': msg}
 
-            my_init_best_ord_book_ep_sl_gap = abs(float(actual_entry_price) - float(sl_price))
+            my_init_best_ord_book_ep_sl_gap = abs(Decimal(actual_entry_price) - Decimal(sl_price))
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, 
                                                     my_init_best_order_book_price=actual_entry_price, 
                                                     my_slippage_counter=config.slippage_counter,
@@ -436,7 +440,6 @@ def webhook():
         config.is_breakeven_hit = False
         config.stop_order_id = stop_order_id
         config.side = tradingview_alert['type']
-        config.run_ws_flag = True
         config.init_sl=stoploss
         config.init_qty=qty
 
@@ -457,12 +460,14 @@ def webhook():
         # Search KnowledgeNotes.txt for multiprocessing, an easy alternative solution to threading
         thread_names = [t.name for t in threading.enumerate()]
         if "ws_stoporder_thread" not in thread_names:
+            config.run_ws_flag = True
             ws_stoporder_thread = Thread(target=ws_stoporder.ws_stoporder_fun, name=config.WS_STOPORDER_NAME)
             ws_stoporder_thread.start()
         else:
             pass # We don't create another stop ws because its already running
 
         if "ws_kline_thread" not in thread_names:
+            config.run_ws_flag = True
             ws_kline_thread = Thread(target=ws_kline.ws_kline_fun, args=(tradingview_alert['symbol'], stop_order_id, tradingview_alert['type']), name=config.WS_KLINE_NAME)
             ws_kline_thread.start()
         else:

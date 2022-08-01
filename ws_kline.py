@@ -15,7 +15,7 @@ ws_linear = None
 def ws_kline_fun(symbol, stop_order_id, order_direction):
     config.exchange.connect_to_exchange()
     config.exchange.check_and_reconnect_sockets()
-    
+
     global ws_linear
 
     # if you don't stop order id, then it means the ordr has closed already and there is nothing to trail
@@ -70,7 +70,7 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
         if config.stop_order_id == '':
             config.run_ws_flag = False # end kline thread
 
-        config.entry_price = math.trunc(config.entry_price)
+        config.entry_price = config.exchange.truncate(config.entry_price, config.max_precision)
         config.exchange.connect_to_exchange()
         try:
             config.exchange.change_stoploss(symbol=symbol, stop_order_id=stop_order_id, new_stoploss_price=config.entry_price)
@@ -135,7 +135,7 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
         elif order_direction == config.SHORT:
             new_sl = config.profit_target_price + config.gap_to_sl
 
-        config.stoploss = math.trunc(new_sl)
+        config.stoploss = config.exchange.truncate(new_sl, config.max_precision)
         config.exchange.connect_to_exchange()
         try:
             config.exchange.change_stoploss(symbol=symbol, stop_order_id=stop_order_id, new_stoploss_price=config.stoploss)

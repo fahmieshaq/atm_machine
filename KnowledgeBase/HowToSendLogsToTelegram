@@ -1,3 +1,4 @@
+############################### How to Send Messages from Python to Telegram (One-way) #######################################
 #https://my.telegram.org/apps
 #https://www.geeksforgeeks.org/send-message-to-telegram-user-using-python/   => BOT CREATION 
 #https://medium.com/@robertbracco1/how-to-write-a-telegram-bot-to-send-messages-with-python-bcdf45d0a580  => Python code to send message to the bot
@@ -16,3 +17,48 @@
 # Put the two lines below in telegram.py and run python telegram.py
 import telegram_send
 telegram_send.send(messages=["HERE IS THE MESSAGE"]) # that's the only line you need to send out messages to telegram
+
+############################ How to Send Messages from Telegram to Python so Python Can Take Some Action based on Your Telegram Message ############################
+#Source: https://python.plainenglish.io/monitoring-server-with-telegram-bot-and-python-b39d0a384fab
+
+1. First of all, do $ poetry add psutil
+2. Do $ poetry add pyTelegramBotAPI
+3. Create a file called telegram_checker.py under project root dir. You can name the file anything not necessarily telegram_checker.py
+4. Go to your BotFather in your Telegram and list your bots and find the bot name you want to connect your python with THEN get the API KEY of the bot channel from BotFather
+5. Paste the code below in telegram_checker.py, or go the actual telegram_checker.py in prod to see a real example.
+
+---------------- Same code (start) ---------------
+import psutil
+from subprocess import Popen
+import telebot
+
+API_KEY='000000000000000000' # telegram channel API KEY
+
+# Make a connection to bot
+bot = telebot.TeleBot(API_KEY)
+
+# This is my personal logic to check my app.py is running in server or not.
+def is_main_program_alive():
+    is_live=False
+    main_program_filename='app.py'
+    for process in psutil.process_iter():
+        if process.cmdline() == ['python', main_program_filename]:
+            is_live=True
+
+    return is_live
+
+# If telegram sends /check, the code inside 
+@bot.message_handler(commands=['check']) # You can check_main_program() gets triggered
+def check_main_program(message):
+    app_status = is_main_program_alive()
+    msg=''
+    if app_status:
+        msg='The main atm_machine program app.py is alive'
+    else:
+        msg='The main atm_machine program app.py is not working! Please run /boot command to revive it.'
+
+    bot.send_message(message.chat.id, msg) #---> Sends the response back to telegram
+    # or you could call: bot.reply_to(message, msg)
+
+bot.infinity_polling()
+---------------- Same code (end) ---------------

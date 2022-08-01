@@ -1,3 +1,4 @@
+from decimal import Decimal
 import math
 from pybit.usdt_perpetual import HTTP, WebSocket
 import json
@@ -26,6 +27,7 @@ class ByBit:
     def __init__(self):
         # Connect to ByBit
         self.is_connected = False
+        self.is_critical_http_occured = False
         self.connect_to_exchange()
 
 
@@ -66,20 +68,36 @@ class ByBit:
                 sleep(3)
 
         if self.is_connected == False:
+            self.is_critical_http_occured = True
             server_endpoint=''
             if (config.TESTNET_FLAG): 
                 server_endpoint = config.TESTNET_ENDPOINT
             else:
                 server_endpoint = config.LIVE_ENDPOINT
 
-            msg = 'CRITICAL: Warning - Failed to connect to ByBit HTTP() exchange server ' + str(server_endpoint) + ' after maximum attempt ' + str(config.MAX_RETRY_COUNTER_FOR_HTTP_CONNECT) + 'x. The whole application is down. Manual intervention is required. Run python app.py in the server.'
+            msg = 'CRITICAL: Warning - Failed to connect to ByBit HTTP() exchange server ' + str(server_endpoint) + ' after maximum attempt ' + str(config.MAX_RETRY_COUNTER_FOR_HTTP_CONNECT) + 'x. The whole application is down due to lose of connectivity with bybit server. Manual intervention ' \
+                  'might be required by running python app.py in the server ONLY and ONLY IF you do not received a telegram message shortly that says CRITICAL HTTP() Connection is Resolved, after 5-10 mins or so.'
             try:
                 telegram_send.send(messages=[msg])
                 models_utils.insert_mylogs(notes=msg)
                 if config.MY_DEBUG_MODE:
-                    print('[Debug Mode] ByBit Server is down. The application is down and manual intervention is required. We attempted to connect ' + str(retry_counter) + ' times with a wait time of 3 seconds between one attempt to another.')
+                    print('[Debug Mode] ByBit Server is down. The application is down and manual intervention might be required ONLY and ONLY IF you do not receive a telegram message shortly that says CRITICAL HTTP() Connection is Resolved after 5-10 mins or so. We attempted to connect ' + str(retry_counter) + ' times with a wait time of 3 seconds between one attempt to another.')
             except Exception as e:
-                msg = 'Internet is down! Telegram could not send you the critical message. The exception is ' + str(e)
+                msg = 'Internet is down! Telegram could not send you the critical message due internet connection issues. The exception is ' + str(e)
+                models_utils.insert_mylogs(notes=msg)
+                if config.MY_DEBUG_MODE:
+                    print('[Debug mode] ' + msg)
+        
+        if self.is_connected == True and self.is_critical_http_occured == True:
+            self.is_critical_http_occured = False # Done critical is resolved
+            msg = 'RESOLVED - The critical warning HTTP() connection to the exchange server got resolved. Your atm machine is connected to the exchange successfully and your app is running fine! No manual intervention is required'
+            try:
+                telegram_send.send(messages=[msg])
+                models_utils.insert_mylogs(notes=msg)
+                if config.MY_DEBUG_MODE:
+                    print(msg)
+            except Exception as e:
+                msg = 'Internet is down! Telegram could not send you the success message (critical reoslution) due internet connection issues. The exception is ' + str(e)
                 models_utils.insert_mylogs(notes=msg)
                 if config.MY_DEBUG_MODE:
                     print('[Debug mode] ' + msg)
@@ -150,7 +168,7 @@ class ByBit:
                 for i in range(0, len(result)):
                     if result[i].get('data').get('size') > 0:
                         pos_symbol=result[i].get('data').get('symbol')
-                        pos_size=float(result[i].get('data').get('size'))
+                        pos_size=Decimal(result[i].get('data').get('size'))
                         pos_side=result[i].get('data').get('side')
                         break
 
@@ -161,27 +179,31 @@ class ByBit:
     def check_and_reconnect_sockets(self):
         # In case main program shuts down. When you re-run
         # main program, you program will pick up from where your sockets global 
-        # variables left
-        config.exchange.read_global_variables_from_file(config.GLOBAL_VARS_FILE)
-        config.run_ws_flag = True
-
-        if config.MY_DEBUG_MODE:
-            print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
-            print('symbol: ' + config.symbol)
-            print('entry price: ' + str(config.entry_price))
-            print('stoploss: ' + str(config.stoploss))
-            print('profit target: ' + str(config.profit_target_price))
-            print('breakeven target: ' + str(config.breakeven_target_price))
-            print('gap_to_sl: ' + str(config.gap_to_sl))
+        # variables left. If some global variables are empty then probably connection
+        # got interrupted and somehow lost global variables from heap. As a result, lets
+        # fetch our global variables from the file. The file stores the most recent, latest,
+        # variables values before the connection interruption happened
+        if config.stoploss <= 0 or config.stop_order_id == '' or config.entry_price <= 0:
+            config.exchange.read_global_variables_from_file(config.GLOBAL_VARS_FILE)
+            if config.MY_DEBUG_MODE:
+                print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
+                print('symbol: ' + config.symbol)
+                print('entry price: ' + str(config.entry_price))
+                print('stoploss: ' + str(config.stoploss))
+                print('profit target: ' + str(config.profit_target_price))
+                print('breakeven target: ' + str(config.breakeven_target_price))
+                print('gap_to_sl: ' + str(config.gap_to_sl))
 
         thread_names = [t.name for t in threading.enumerate()]
         if "ws_stoporder_thread" not in thread_names:
+            config.run_ws_flag = True
             ws_stoporder_thread = Thread(target=ws_stoporder.ws_stoporder_fun, name=config.WS_STOPORDER_NAME)
             ws_stoporder_thread.start()
         else:
             pass # We don't create another stop ws because its already running
 
         if "ws_kline_thread" not in thread_names:
+            config.run_ws_flag = True
             ws_kline_thread = Thread(target=ws_kline.ws_kline_fun, args=(config.symbol, config.stop_order_id, config.side), name=config.WS_KLINE_NAME)
             ws_kline_thread.start()
         else:
@@ -192,7 +214,7 @@ class ByBit:
     def calculate_crypto_required_qty(self, risk_amount, entry_price, stoploss):
         qty=0.0
         try:
-            qty = round((risk_amount / abs(float(entry_price) - float(stoploss))), 3)
+            qty = config.exchange.truncate((risk_amount / abs(Decimal(entry_price) - Decimal(stoploss))), config.max_precision)
         except Exception as e:
             pass
         return qty
@@ -201,7 +223,7 @@ class ByBit:
     # You can view Maintenance Margin basic value under 'Contract Details' located on the bybit trading platform.
     def get_maintenance_margin_rate(self, symbol, qty, entry_price):
         self.connect_to_exchange()
-        position_value = float(qty) * float(entry_price) # position_value is the value that you see under Positions tab -> Value column in the trading platform
+        position_value = Decimal(qty) * Decimal(entry_price) # position_value is the value that you see under Positions tab -> Value column in the trading platform
         result = self.session.get_risk_limit(symbol=symbol).get('result')
         mmr_value = 0.0
         for i in range(len(result)):
@@ -220,12 +242,13 @@ class ByBit:
         initial_margin_rate = 1 / leverage
         liquidation_price = 0.0
         if(type == config.LONG):
-            liquidation_price = round(float(entry_price) * (1 - float(initial_margin_rate) + float(maintenance_margin_rate)), 2)
+            liquidation_price = config.exchange.truncate(Decimal(entry_price) * (1 - Decimal(initial_margin_rate) + Decimal(maintenance_margin_rate)), config.max_precision)
         if(type == config.SHORT):
-            liquidation_price = round(float(entry_price) * (1 + float(initial_margin_rate) - float(maintenance_margin_rate)), 2)
+            liquidation_price = config.exchange.truncate(Decimal(entry_price) * (1 + Decimal(initial_margin_rate) - Decimal(maintenance_margin_rate)), config.max_precision)
         
         if(liquidation_price <= 0):
-            liquidation_price = self.get_tick_size(symbol=symbol)
+            liquidation_price = config.tick_size
+            # liquidation_price, _ = self.get_tick_size(symbol=symbol)
 
         return liquidation_price # liquidation price uses mark price
 
@@ -241,12 +264,13 @@ class ByBit:
         maintenance_margin_amount = qty * entry_price * maintenance_margin_rate
         liquidation_price = 0.0
         if(type == config.LONG):
-            liquidation_price = float(mark_price) - (float(available_balance) + initial_margin - maintenance_margin_amount) / qty
+            liquidation_price = Decimal(mark_price) - (Decimal(available_balance) + initial_margin - maintenance_margin_amount) / qty
         if(type == config.SHORT):
-            liquidation_price = float(mark_price) + (float(available_balance) + initial_margin - maintenance_margin_amount) / qty
+            liquidation_price = Decimal(mark_price) + (Decimal(available_balance) + initial_margin - maintenance_margin_amount) / qty
         
         if(liquidation_price <= 0):
-            liquidation_price = self.get_tick_size(symbol=symbol)
+            liquidation_price = config.tick_size
+            #liquidation_price, _ = self.get_tick_size(symbol=symbol)
 
         return liquidation_price # liquidation price uses mark price
 
@@ -261,7 +285,7 @@ class ByBit:
 
         max_slippage_count = config.MAX_SLIPPAGE_PRICE_TIER # For example, max_slippage_count = 4 represents the 4th price tier in the order book.
         if type == config.LONG:
-            aggregated_size = 0.0
+            aggregated_size = Decimal(0.0)
             slippage_counter = 0
             # Red zone (ask price)
             for i in range(25, 50): # Range: This secton 25 (25 is excluded), 50 handles long orders (Ask Prices). 25 to 50 represents the red order book area. Hence, range(25, 50) stars from line 26 (not 25) to 50
@@ -273,7 +297,7 @@ class ByBit:
                     return -1 # -1 means we don't want to proceed with the order because it looks like our order would be 
                               # fulfilled in the later price tiers beyond max_slippage_count
                 ask_price = order_book[i].get('price')
-                aggregated_size = aggregated_size + float(order_book[i].get('size'))
+                aggregated_size = aggregated_size + Decimal(order_book[i].get('size'))
                 if qty <= aggregated_size:
                     config.slippage_counter = slippage_counter
                     return ask_price # entry price for long order
@@ -281,7 +305,7 @@ class ByBit:
         
         # Green zone (bid price)
         if type == config.SHORT:
-            aggregated_size = 0.0
+            aggregated_size = Decimal(0.0)
             slippage_counter = 0
             for i in range(25): # Range: This secton 1 to 25 (25 is included) handles short orders (Bid Prices). 1 to 25 represents the green order book area
                 if order_book[i].get('side') != 'Buy': # it's an issue, we expect to get side=Buy
@@ -292,7 +316,7 @@ class ByBit:
                     return -1 # -1 means we don't want to proceed with the order because it looks like our order 
                               # would be fulfilled in the later price tiers beyond max_slippage_count
                 bid_price = order_book[i].get('price')
-                aggregated_size = aggregated_size + float(order_book[i].get('size'))
+                aggregated_size = aggregated_size + Decimal(order_book[i].get('size'))
                 if qty <= aggregated_size:
                     config.slippage_counter = slippage_counter
                     return bid_price # entry price for short order
@@ -312,19 +336,19 @@ class ByBit:
                         mid_candle_mark_price, open_mark_price, close_mark_price, high_mark_price, low_mark_price, \
                         is_candle_green_for_mark_price, type, ticks_buffer):
 
-        possible_entry_price = float(possible_entry_price)
+        possible_entry_price = Decimal(possible_entry_price)
         
-        mid_price = float(mid_price)
-        open = float(open)
-        close = float(close)
-        high = float(high)
-        low = float(low)
+        mid_price = Decimal(mid_price)
+        open = Decimal(open)
+        close = Decimal(close)
+        high = Decimal(high)
+        low = Decimal(low)
 
-        mid_candle_mark_price = float(mid_candle_mark_price)
-        open_mark_price = float(open_mark_price)
-        close_mark_price = float(close_mark_price)
-        high_mark_price = float(high_mark_price)
-        low_mark_price = float(low_mark_price)
+        mid_candle_mark_price = Decimal(mid_candle_mark_price)
+        open_mark_price = Decimal(open_mark_price)
+        close_mark_price = Decimal(close_mark_price)
+        high_mark_price = Decimal(high_mark_price)
+        low_mark_price = Decimal(low_mark_price)
         
         sl_price = 0.0
         sl_mark_price = 0.0 # we need to determine mark price of our stoploss so we can check later on if our mark price > liq price or not given that liq price is mark price.
@@ -339,9 +363,10 @@ class ByBit:
                 else:
                     sl_price = -1 # no viable SL.
             if sl_price != -1 and ticks_buffer > 0:
-                mintick = self.get_tick_size(symbol=symbol) # mintick is the smallest unit you can move your SL in a chart
-                sl_price = sl_price + (float(mintick) * ticks_buffer * -1) # -1 means shift stoploss down because we added a negative sign * -1
-                sl_mark_price = sl_mark_price + (float(mintick) * ticks_buffer * -1)
+                mintick = config.tick_size
+                #mintick, _ = self.get_tick_size(symbol=symbol) # mintick is the smallest unit you can move your SL in a chart
+                sl_price = sl_price + (Decimal(mintick) * ticks_buffer * -1) # -1 means shift stoploss down because we added a negative sign * -1
+                sl_mark_price = sl_mark_price + (Decimal(mintick) * ticks_buffer * -1)
 
         if type == config.SHORT:
             sl_price = mid_price
@@ -353,9 +378,10 @@ class ByBit:
                 else:
                     sl_price = -1 # no viable SL.
             if sl_price != -1 and ticks_buffer > 0:
-                mintick = self.get_tick_size(symbol=symbol) # mintick is the smallest unit you can move your SL in a chart
-                sl_price = sl_price + (float(mintick) * ticks_buffer) # shifts stoploss up cause we didn't add a negative sign * -1
-                sl_mark_price = sl_mark_price + (float(mintick) * ticks_buffer)
+                mintick = config.tick_size
+                #mintick, _ = self.get_tick_size(symbol=symbol) # mintick is the smallest unit you can move your SL in a chart
+                sl_price = sl_price + (Decimal(mintick) * ticks_buffer) # shifts stoploss up cause we didn't add a negative sign * -1
+                sl_mark_price = sl_mark_price + (Decimal(mintick) * ticks_buffer)
 
         return sl_price, sl_mark_price
 
@@ -363,7 +389,7 @@ class ByBit:
     # https://help.bybit.com/hc/en-us/articles/900000630066-P-L-calculations-USDT-Contract-
     # Formula: Initial margin = (Qty x Entry price) / leverage = (0.2 x 7000) /10 = 140 USDT
     def calculate_initial_margin(self, required_qty, entry_price, leverage):
-        return round((required_qty * float(entry_price)) / leverage, 2) 
+        return config.exchange.truncate((Decimal(required_qty) * Decimal(entry_price)) / Decimal(leverage), config.max_precision) 
 
 
     def get_latest_symbol_info(self, symbol):
@@ -379,36 +405,42 @@ class ByBit:
     def get_available_usdt_balance(self):
         self.connect_to_exchange()
         available_balance = self.session.get_wallet_balance(coin="USDT").get('result').get('USDT').get('available_balance')
-        return float(available_balance)
+        return Decimal(available_balance)
 
 
+    # Source: https://bybit-exchange.github.io/docs/inverse/#t-querysymbol
     def get_tick_size(self, symbol):
         self.connect_to_exchange()
         result = self.session.query_symbol().get('result') # gives you back all symbols
         tick_size = 0.0
+        price_scale = 0.0
         for i in range(len(result)):
             if(symbol == result[i].get('name')):
                 tick_size = result[i].get('price_filter').get('tick_size')
+                price_scale = result[i].get('price_scale') # Price scale is the number of decimal places to which a price can be submitted, although the final price may be rounded to conform to the tick_size
                 break
-        return tick_size
+        return tick_size, price_scale
 
 
     # https://bybit-exchange.github.io/docs/linear/#t-querykline or https://bybit-exchange.github.io/docs/linear/#t-markpricekline
     # previous_candle_index = 1 refers to current candle
+    # Warning: get_1_min_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_1_min_candle_info()
+    # you have to test it in live environment not testnet; for testing it in live server, just go to TESTNET_FLAG and set it to False
     def get_1_min_candle_info(self, symbol, previous_candle_index):
-        current_date = datetime.now()
+        current_date = datetime.utcnow()
         last_min = current_date - timedelta(minutes=previous_candle_index) # previous_candle_index = 1 refers to current candle
-        last_min_ts = datetime.timestamp(last_min.replace(microsecond=0))
+        last_min_ts = datetime.timestamp(last_min.replace(microsecond=0, tzinfo=timezone.utc))
 
         # Interval parameter refers to enum: 1 3 5 15 30 60 120 240 360 720 "D" "M" "W". For example, 720 refers to minutes worth of 12hrs
         # Limit parameter refers to data size. Limit has a max size is 200. Default as showing 200 pieces of data
         # Get ByBit platform (last traded) price
         candle = self.session.query_kline(symbol=symbol, interval="1", limit=1, from_time=last_min_ts).get('result')
+
         open_price = candle[0].get('open')
         close_price = candle[0].get('close')
         high_price = candle[0].get('high')
         low_price = candle[0].get('low')
-        mid_candle_price = round((float(candle[0].get('open')) + float(candle[0].get('close'))) / 2, 2) # that's the stoploss I aim for
+        mid_candle_price = config.exchange.truncate((Decimal(candle[0].get('open')) + Decimal(candle[0].get('close'))) / 2, config.max_precision) # that's the stoploss I aim for
         is_candle_green = True if close_price > open_price else False
 
         # Get symbol's mark price. Mark price reflects the real-time spot price on the major exchanges. We need mark price 
@@ -418,7 +450,7 @@ class ByBit:
         close_mark_price = candle_for_mark_price[0].get('close')
         high_mark_price = candle_for_mark_price[0].get('high')
         low_mark_price = candle_for_mark_price[0].get('low')
-        mid_candle_mark_price = round((float(candle_for_mark_price[0].get('open')) + float(candle_for_mark_price[0].get('close'))) / 2, 2) # that's the stoploss I aim for
+        mid_candle_mark_price = config.exchange.truncate((Decimal(candle_for_mark_price[0].get('open')) + Decimal(candle_for_mark_price[0].get('close'))) / 2, config.max_precision) # that's the stoploss I aim for
         is_candle_green_for_mark_price = True if close_mark_price > open_mark_price else False
 
         return mid_candle_price, open_price, close_price, high_price, low_price, is_candle_green, \
@@ -434,7 +466,7 @@ class ByBit:
     # increase your profitability, In other words, leverage doesn't increase your position size i.e. qty.
     # Leverage simply lets you take a trade with your position size i.e. qty BUT with smaller position margin
     def get_minimum_required_leverage(self, qty, entry_price, available_bal):
-        position_margin = float(qty) * float(entry_price)
+        position_margin = Decimal(qty) * Decimal(entry_price)
         min_required_leverage = position_margin / available_bal
         if min_required_leverage < 1: min_required_leverage = 1
         # Jack up the leverage a little up so we guarantee our position margin would be a little less than the available balance
@@ -451,9 +483,9 @@ class ByBit:
     # our target price at a specific ratio such as 1.5x, 5x, etc.
     # target_ratio takes decimal like 3.5 or 1.55 as well as integer as 5
     def get_target_price(self, type, entry_price, stoploss, target_ratio):
-        entry_price = float(entry_price)
-        stoploss = float(stoploss)
-        points = abs(stoploss - entry_price) * target_ratio
+        entry_price = Decimal(entry_price)
+        stoploss = Decimal(stoploss)
+        points = abs(stoploss - entry_price) * Decimal(target_ratio)
         target_price = 0.0
         if type == config.SHORT:
             target_price = entry_price - points
@@ -461,7 +493,7 @@ class ByBit:
         else:
             target_price = entry_price + points
             #target_price = math.ceil(target_price) # 300.16 becomes 301.0
-        return math.trunc(target_price)
+        return config.exchange.truncate(target_price, config.max_precision)
 
 
     def delete_file(self, filename):
@@ -485,6 +517,8 @@ class ByBit:
         config.symbol = ''
         config.init_sl=0.0          # this is specifically used in ws_stoporder to prevent incidents when we have open positions without stoploss
         config.init_qty=0.0         # this is specifically used in ws_stoporder to prevent incidents when we have open positions without stoploss
+        config.tick_size=0.0
+        config.max_precision=0 
 
         # Reset database variables. The variables are used during db insertion
         config.tvalert_id=0
@@ -518,7 +552,9 @@ class ByBit:
                     config.exg_trailed_profit_sl_counter,
                     config.symbol,
                     config.init_sl,
-                    config.init_qty 
+                    config.init_qty, 
+                    config.tick_size,
+                    config.max_precision
             ]
             pickle.dump(global_vars, file)
             file.close()
@@ -576,7 +612,9 @@ class ByBit:
                 config.exg_trailed_profit_sl_counter,
                 config.symbol,
                 config.init_sl,
-                config.init_qty
+                config.init_qty,
+                config.tick_size,
+                config.max_precision
             ] = pickle.load(file)
             file.close()
         except (EOFError, Exception) as e: # if you hit here, most probably the file is corrupted 
@@ -634,6 +672,8 @@ class ByBit:
             if side == config.LONG: my_side = 'Sell'
             if side == config.SHORT: my_side = 'Buy'
 
+        stop_loss = config.exchange.truncate(stop_loss, config.max_precision)
+        
         order_response_number = 0
         order_response = self.session.place_active_order(
                 symbol=symbol,
@@ -641,7 +681,7 @@ class ByBit:
                 qty=qty,
                 order_type='Market',
                 time_in_force='ImmediateOrCancel',
-                stop_loss=math.trunc(stop_loss), # ByBit automatically places the stoploss as a conditional market order
+                stop_loss=stop_loss, # ByBit automatically places the stoploss as a conditional market order
                 reduce_only=reduce_only,
                 close_on_trigger=False)
 
@@ -719,7 +759,7 @@ class ByBit:
     # our WSL2 time has drifted from ByBit server time a.k.a unix time.
     def compare_local_time_with_exchange_server_time(self):
         exg_server_time = self.session.server_time().get('time_now')
-        exg_server_time = int(float(exg_server_time))
+        exg_server_time = int(Decimal(exg_server_time))
         print('Exchange server time: ' + datetime.utcfromtimestamp(exg_server_time).strftime('%Y-%m-%d %H:%M:%S')) # convert unix time to a readable format
 
         local_server_time = int(time.time())
@@ -730,6 +770,7 @@ class ByBit:
     def convert_api_datetime_from_str_to_obj(self, datetime_str):
         return datetime.strptime(datetime_str[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S')
 
+
     # Check whether we are connected to bybit server
     def check_bybit_connection(self):
         try:
@@ -737,4 +778,19 @@ class ByBit:
             self.is_connected = True
         except Exception as e:
             self.is_connected = False
-        
+
+
+    # Source: https://kodify.net/python/math/truncate-decimals/
+    def truncate(self, number, decimals=0):
+        """
+        Returns a value truncated to a specific number of decimal places.
+        """
+        if not isinstance(decimals, int):
+            raise TypeError("decimal places must be an integer.")
+        elif decimals < 0:
+            raise ValueError("decimal places has to be 0 or more.")
+        elif decimals == 0:
+            return math.trunc(number)
+
+        factor = 10.0 ** decimals
+        return math.trunc(number * Decimal(factor)) / Decimal(factor)

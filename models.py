@@ -7,7 +7,10 @@ db = SQLAlchemy()
 # Big Warning! Do not rename the class. If you rename the class e.g. TvAlert to TvAlertX, SQLAlchemy will drop TvAlert completely and re-create a new model called TvAlertX
 # Any field post-fixed with _config, it means this field represents a constant value from our config.py file
 # exg_ columns represent the actual values we got from the exchange's platform after placing the order
-# All datetime columns store UTC timezone.
+# All datetime columns are stored in UTC timezone. Also, db.Float is interpreted in postgres as 'double precision' data type 
+# and as per this source https://stackoverflow.com/questions/13113096/how-to-round-an-average-to-2-decimal-places-in-postgresql 
+# 'double precision' does not round your decimals which is good because throughout my program I only truncate decimasl to a certain precision and
+# I want my postgres tvalert to reflect that exact decimals propogated by my program and I do not want my decimals to be rounded up in postgres.
 class TvAlert(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     exchange = db.Column(db.String(20))
@@ -91,9 +94,11 @@ class TvAlert(db.Model):
 # Keep track of generic logs such as critical HTTP bybit server connection failure or so
 class MyLogs(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime)
     notes = db.Column(db.Text(), nullable=True)
 
     def __init__(self, notes): 
+        self.created_at = datetime.strptime(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), '%Y-%m-%d %H:%M:%S')
         self.notes = notes
     
     def __repr__(self):
