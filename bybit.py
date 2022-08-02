@@ -193,7 +193,9 @@ class ByBit:
                 print('profit target: ' + str(config.profit_target_price))
                 print('breakeven target: ' + str(config.breakeven_target_price))
                 print('gap_to_sl: ' + str(config.gap_to_sl))
-
+                print('tick_size: ' + str(config.tick_size))
+                print('max_precision: ' + str(config.max_precision))
+                
         thread_names = [t.name for t in threading.enumerate()]
         if "ws_stoporder_thread" not in thread_names:
             config.run_ws_flag = True
@@ -350,8 +352,8 @@ class ByBit:
         high_mark_price = Decimal(high_mark_price)
         low_mark_price = Decimal(low_mark_price)
         
-        sl_price = 0.0
-        sl_mark_price = 0.0 # we need to determine mark price of our stoploss so we can check later on if our mark price > liq price or not given that liq price is mark price.
+        sl_price = Decimal(0.0)
+        sl_mark_price = Decimal(0.0) # we need to determine mark price of our stoploss so we can check later on if our mark price > liq price or not given that liq price is mark price.
         
         if type == config.LONG:
             sl_price = mid_price
@@ -383,7 +385,7 @@ class ByBit:
                 sl_price = sl_price + (Decimal(mintick) * ticks_buffer) # shifts stoploss up cause we didn't add a negative sign * -1
                 sl_mark_price = sl_mark_price + (Decimal(mintick) * ticks_buffer)
 
-        return sl_price, sl_mark_price
+        return config.exchange.truncate(sl_price, config.max_precision), config.exchange.truncate(sl_mark_price, config.max_precision)
 
 
     # https://help.bybit.com/hc/en-us/articles/900000630066-P-L-calculations-USDT-Contract-
@@ -412,8 +414,8 @@ class ByBit:
     def get_tick_size(self, symbol):
         self.connect_to_exchange()
         result = self.session.query_symbol().get('result') # gives you back all symbols
-        tick_size = 0.0
-        price_scale = 0.0
+        tick_size = Decimal(0.0)
+        price_scale = Decimal(0.0)
         for i in range(len(result)):
             if(symbol == result[i].get('name')):
                 tick_size = result[i].get('price_filter').get('tick_size')
@@ -486,7 +488,7 @@ class ByBit:
         entry_price = Decimal(entry_price)
         stoploss = Decimal(stoploss)
         points = abs(stoploss - entry_price) * Decimal(target_ratio)
-        target_price = 0.0
+        target_price = Decimal(0.0)
         if type == config.SHORT:
             target_price = entry_price - points
             #target_price = math.floor(target_price) # -23.11 becomes -24.0
@@ -672,8 +674,24 @@ class ByBit:
             if side == config.LONG: my_side = 'Sell'
             if side == config.SHORT: my_side = 'Buy'
 
-        stop_loss = config.exchange.truncate(stop_loss, config.max_precision)
-        
+        sl = config.exchange.truncate(stop_loss, config.max_precision) # Gives you decimal datatype
+        sl = str(sl) # You had to convert Decimal to string. 
+                     # Wurzel Wurum said, the api is taking these params as 
+                     # string, which allows to use the precision you/the exchange want (decimal datatypes are 
+                     # usually represented as string internally, so decimal can be converted to string easily). What 
+                     # you are using is a library for the bybit api (pybit I think?), which forces you to input these 
+                     # params as float, which does not make sence in my opinion because the library has still to convert 
+                     # it to string. (@dextertd you are the creator of pybit, right? Maybe consider accepting string for these params.) However 
+                     # it is still better doing all the stuff with decimal datatype and convert it to float in the end than only 
+                     # calculating everything with float, especially if you have coins, where the price is very low (like 0.00XXXX). Doing 
+                     # many calculations or/and calculations with very small numbers with the float datatype will lead to very 
+                     # bad precision (or call it mistake).
+                     # As a result, I conveted decimal to string to maintain the fractional decimals and I told Wuzrel I hope pybit
+                     # does not convert string back to float behind the scenes, Wurzel agreed. He said it'd be crazy if pybit converts string
+                     # to float. I check the source code in github and I couldn't see float conversion, so we are good. Also, you can test
+                     # SHIBA USDT to test how bybit behaves placing order for symbols priced in fractins like 0.0000xxx aka SHIB USDT or so.
+                     # Dexter (pybit) developer said it does not cast/convert it to float; pybit takes your price string as it is and send it to bybit
+                     
         order_response_number = 0
         order_response = self.session.place_active_order(
                 symbol=symbol,
@@ -681,10 +699,10 @@ class ByBit:
                 qty=qty,
                 order_type='Market',
                 time_in_force='ImmediateOrCancel',
-                stop_loss=stop_loss, # ByBit automatically places the stoploss as a conditional market order
+                stop_loss=sl, # ByBit automatically places the stoploss as a conditional market order
                 reduce_only=reduce_only,
                 close_on_trigger=False)
-
+        
         if order_response.get('ret_code') == 0 and order_response.get('ext_code') == "":
             order_response_number = 1
             config.exg_executed_at = order_response.get('result').get('created_time')
@@ -749,10 +767,28 @@ class ByBit:
 
 
     def change_stoploss(self, symbol, stop_order_id, new_stoploss_price):
+        new_sl_price = config.exchange.truncate(new_stoploss_price, config.max_precision) # Gives you decimal datatype
+        new_sl_price = str(new_sl_price) # You had to convert Decimal to string. 
+                                        # Wurzel Wurum said, the api is taking these params as 
+                                        # string, which allows to use the precision you/the exchange want (decimal datatypes are 
+                                        # usually represented as string internally, so decimal can be converted to string easily). What 
+                                        # you are using is a library for the bybit api (pybit I think?), which forces you to input these 
+                                        # params as float, which does not make sence in my opinion because the library has still to convert 
+                                        # it to string. (@dextertd you are the creator of pybit, right? Maybe consider accepting string for these params.) However 
+                                        # it is still better doing all the stuff with decimal datatype and convert it to float in the end than only 
+                                        # calculating everything with float, especially if you have coins, where the price is very low (like 0.00XXXX). Doing 
+                                        # many calculations or/and calculations with very small numbers with the float datatype will lead to very 
+                                        # bad precision (or call it mistake).
+                                        # As a result, I conveted decimal to string to maintain the fractional decimals and I told Wuzrel I hope pybit
+                                        # does not convert string back to float behind the scenes, Wurzel agreed. He said it'd be crazy if pybit converts string
+                                        # to float. I check the source code in github and I couldn't see float conversion, so we are good. Also, you can test
+                                        # SHIBA USDT to test how bybit behaves placing order for symbols priced in fractins like 0.0000xxx aka SHIB USDT or so.
+                                        # Dexter (pybit) developer said it does not cast/convert it to float; pybit takes your price string as it is and send it to bybit
+
         config.exchange.session.replace_conditional_order(
                                     symbol=symbol,
                                     stop_order_id=stop_order_id,
-                                    p_r_trigger_price=new_stoploss_price)
+                                    p_r_trigger_price=new_sl_price)
 
 
     # Call this function for debugging purposes only to see whether
@@ -792,5 +828,5 @@ class ByBit:
         elif decimals == 0:
             return math.trunc(number)
 
-        factor = 10.0 ** decimals
-        return math.trunc(number * Decimal(factor)) / Decimal(factor)
+        factor = Decimal(10.0) ** decimals
+        return math.trunc(Decimal(number) * Decimal(factor)) / Decimal(factor)

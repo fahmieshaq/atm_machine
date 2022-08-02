@@ -6,6 +6,7 @@ import bybit
 import math
 import models_utils
 import logging
+from decimal import Decimal
 
 ws_linear = None
 
@@ -70,9 +71,9 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
         if config.stop_order_id == '':
             config.run_ws_flag = False # end kline thread
 
-        config.entry_price = config.exchange.truncate(config.entry_price, config.max_precision)
         config.exchange.connect_to_exchange()
         try:
+            # Use entry price is new stoploss price because our goal is to move our SL to breakeven
             config.exchange.change_stoploss(symbol=symbol, stop_order_id=stop_order_id, new_stoploss_price=config.entry_price)
         except Exception as e:
             if config.MY_DEBUG_MODE:
@@ -105,7 +106,9 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
                 print('Initial stop loss: ' + str(config.stoploss))
                 print('Breakeven target: ' + str(config.breakeven_target_price))
                 print('Stop order id: ' + str(config.stop_order_id))
-                
+                print('tick_size: ' + str(config.tick_size))
+                print('max_precision: ' + str(config.max_precision))
+                           
             config.stoploss = config.entry_price
             config.is_breakeven_hit = True
 
@@ -129,16 +132,15 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
         if config.stop_order_id == '':
             config.run_ws_flag = False # end kline thread
         
-        new_sl = 0.0
+        new_sl = Decimal(0.0)
         if order_direction == config.LONG:
-            new_sl = config.profit_target_price - config.gap_to_sl
+            new_sl = Decimal(config.profit_target_price) - Decimal(config.gap_to_sl)
         elif order_direction == config.SHORT:
-            new_sl = config.profit_target_price + config.gap_to_sl
+            new_sl = Decimal(config.profit_target_price) + Decimal(config.gap_to_sl)
 
-        config.stoploss = config.exchange.truncate(new_sl, config.max_precision)
         config.exchange.connect_to_exchange()
         try:
-            config.exchange.change_stoploss(symbol=symbol, stop_order_id=stop_order_id, new_stoploss_price=config.stoploss)
+            config.exchange.change_stoploss(symbol=symbol, stop_order_id=stop_order_id, new_stoploss_price=new_sl)
         except Exception as e:
             if config.MY_DEBUG_MODE:
                 print(msg_is_debug_mode + '[Issue kline] change_stoploss() inside trail_sl_to_profit_zone threw an exception: ' + str(e))
@@ -162,8 +164,9 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
                                                     'and stoploss got killed and now we starting fresh to receive new alerts.')
                 config.run_ws_flag = False # End sockets
         else: # It gets executed only if no exception occurs
+            config.stoploss = new_sl
             config.entry_price = config.profit_target_price
-            config.profit_target_price = config.exchange.get_target_price(type=order_direction, entry_price=config.entry_price, stoploss=config.stoploss, target_ratio=config.PROFIT_RW_RATIO)
+            config.profit_target_price = config.exchange.get_target_price(type=order_direction, entry_price=config.entry_price, stoploss=new_sl, target_ratio=config.PROFIT_RW_RATIO)
             config.exg_trailed_profit_sl_counter += 1
 
             config.exchange.save_global_variables_into_file(config.GLOBAL_VARS_FILE)
@@ -173,17 +176,19 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
                 print('Current price: ' + str(close))
                 print('Is confirmed: ' + str(confirm))
                 print('Entry price (Profit Target): ' + str(config.entry_price))
-                print('New stop loss: ' + str(config.stoploss))
+                print('New stop loss: ' + str(config.exchange.truncate(new_sl, config.max_precision)))
                 print('New profit target: ' + str(config.profit_target_price))
                 print('Trail counter: ' + str(config.exg_trailed_profit_sl_counter))
                 print('Stop order id: ' + str(config.stop_order_id))
+                print('tick_size: ' + str(config.tick_size))
+                print('max_precision: ' + str(config.max_precision))
                 print('------')
 
             with config.app.app_context():
                 models_utils.update_tradingview_alert(id=config.tvalert_id,
                                 notes=msg_is_debug_mode + 'Trailed SL to Profit Zone',
                                 exg_passed_profit_target=True,
-                                exg_trailed_sl_price=config.stoploss,
+                                exg_trailed_sl_price=new_sl,
                                 exg_trailed_entry_price=config.entry_price,
                                 exg_trailed_profit_target=config.profit_target_price,
                                 exg_trailed_profit_sl_counter=config.exg_trailed_profit_sl_counter)

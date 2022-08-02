@@ -49,10 +49,25 @@ available_balance = 0.0
 # Fyi, order type LONG or SHORT (tradingview_alert['type']) has to be changed from the tradingview alert json request
 debug_leverage_val=1
 debug_my_qty_val=0.035
-debug_sl_price_val=23307
+debug_sl_price_val=22721
 
 # The moment you initiate the app, connect to the exchange
 config.exchange = ByBit()
+
+@app.route("/webhook1", methods=['POST'])
+def webhook1():
+    config.exchange.read_global_variables_from_file(config.GLOBAL_VARS_FILE)
+    if config.MY_DEBUG_MODE:
+        print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
+        print('symbol: ' + config.symbol)
+        print('entry price: ' + str(config.entry_price))
+        print('stoploss: ' + str(config.stoploss))
+        print('profit target: ' + str(config.profit_target_price))
+        print('breakeven target: ' + str(config.breakeven_target_price))
+        print('gap_to_sl: ' + str(config.gap_to_sl))
+        print('tick_size: ' + str(config.tick_size))
+        print('max_precision: ' + str(config.max_precision))
+    return {'code': 'error'}
 
 # This webhook receives tradingview alert json request. We process the json request and place an order in the exchange
 # This webhook takes one alert at a time only and it never processes an alert if we already have an open position. Also,
@@ -95,18 +110,6 @@ def webhook():
     received_at_est = datetime.strptime(tradingview_alert['time'], '%d/%m/%Y %H:%M:%S') # convert alert datetime from string to datetime object
     received_at_utc = received_at_est.astimezone(pytz.utc).strftime("%Y-%m-%d %H:%M:%S") # tradingview_alert['time'] comes in EST timezone. Lets convert it to UTC
     received_at_utc = datetime.strptime(received_at_utc, '%Y-%m-%d %H:%M:%S') # Convert UTC string datetime back to datetime object
-
-    # Get generic data that we'll need through our risk management calculations. Tick size and price scale (aka max decimal)
-    # are important for determing up to how many decimals your symbol takes. For example, if you trade BTCUSDT and you
-    # place an active order with a stoploss of 30,000.534423432, your api will fail because BTCUSDT does not permit
-    # that many decimals. To know the max decimal per symbol, you need to get price scale from ByBit and use
-    # price scale as max decimal limit for the symbol you are trading with. For example, SHIB1000USDT has a tick
-    # size of 0.000005 USDT and its price scale is 6 (you get price scale from an API call), so when you open
-    # position with SHIB1000USDT, make sure whatever price you pass such as stoploss, limit entry price, etc has
-    # covers up enough decimal up of price scale.
-    tick_size, price_scale = config.exchange.get_tick_size(symbol=tradingview_alert['symbol'])
-    config.tick_size=Decimal(tick_size)
-    config.max_precision=int(price_scale)
 
     # If you don't have an open position in the platform AND we have open websockets, kill your active websockets if any exist
     # so your new alert trade starts clean without any residual data from previous alert's websockets.
@@ -162,6 +165,18 @@ def webhook():
         
         config.app = app # Globalize app because inside websockets you'll need to place your insert/update functions within with app.app_context()
                          # so your insert/update don't end up throwing this exception: No application found. Either work inside a view function or push an application context.
+
+        # Get generic data that we'll need through our risk management calculations. Tick size and price scale (aka max decimal)
+        # are important for determing up to how many decimals your symbol takes. For example, if you trade BTCUSDT and you
+        # place an active order with a stoploss of 30,000.534423432, your api will fail because BTCUSDT does not permit
+        # that many decimals. To know the max decimal per symbol, you need to get price scale from ByBit and use
+        # price scale as max decimal limit for the symbol you are trading with. For example, SHIB1000USDT has a tick
+        # size of 0.000005 USDT and its price scale is 6 (you get price scale from an API call), so when you open
+        # position with SHIB1000USDT, make sure whatever price you pass such as stoploss, limit entry price, etc has
+        # covers up enough decimal up of price scale.
+        tick_size, price_scale = config.exchange.get_tick_size(symbol=tradingview_alert['symbol'])
+        config.tick_size=Decimal(tick_size)
+        config.max_precision=int(price_scale)
 
         # --- 1. determine risk amount ---
         available_balance = config.exchange.get_available_usdt_balance() # We need available balance to apply for risk management
@@ -451,6 +466,8 @@ def webhook():
             print('profit target: ' + str(profit_target_price))
             print('breakeven target: ' + str(config.breakeven_target_price))
             print('gap_to_sl: ' + str(config.gap_to_sl))
+            print('tick_size: ' + str(config.tick_size))
+            print('max_precision: ' + str(config.max_precision))
 
         # Save global variables in case main program shuts down. When you re-run
         # main program, you program will pick up from where your sockets global 
