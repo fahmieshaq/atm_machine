@@ -14,7 +14,7 @@ db = SQLAlchemy()
 class TvAlert(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     exchange = db.Column(db.String(20))
-    symbol = db.Column(db.String(10))
+    symbol = db.Column(db.String(50))
     command = db.Column(db.String(30))
     type = db.Column(db.String(7))
     received_at = db.Column(db.DateTime)
@@ -44,7 +44,7 @@ class TvAlert(db.Model):
     my_qty = db.Column(db.Float, nullable=True)                             # The size that allows us to enter the trade with our my_risk_amount
     my_position_margin = db.Column(db.Float, nullable=True)
     my_risk_perc = db.Column(db.Float, nullable=True)
-    my_risk_amount = db.Column(db.Float, nullable=True)
+    my_risk_amount = db.Column(db.Float, nullable=True)                     # Its the amount we want to risk
     my_be_rw_config = db.Column(db.Float, nullable=True)
     my_profit_rw_config = db.Column(db.Float, nullable=True)
     my_executed_at = db.Column(db.DateTime, nullable=True)
@@ -70,6 +70,8 @@ class TvAlert(db.Model):
     exg_passed_profit_target = db.Column(db.Boolean(), nullable=True)
     exg_close_trigger_price = db.Column(db.Float, nullable=True)
     exg_close_at = db.Column(db.DateTime, nullable=True)
+    my_expected_risk_amount = db.Column(db.Float, nullable=True) # This is closest estimated risk amount to the actual order risk amount. Its calculated based on the estimated actual entry price from order book 
+    exg_risk_amount = db.Column(db.Float, nullable=True) # This is the actual risk amount in the exchange after we placed the order
 
     def __init__(self, exchange, symbol, command, type, received_at, is_executed, notes): 
         self.exchange = exchange

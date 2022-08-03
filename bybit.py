@@ -189,7 +189,7 @@ class ByBit:
                 print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
                 print('symbol: ' + config.symbol)
                 print('entry price: ' + str(config.entry_price))
-                print('stoploss: ' + str(config.stoploss))
+                print('stoploss: ' + str(config.exchange.truncate(config.stoploss, config.max_precision)))
                 print('profit target: ' + str(config.profit_target_price))
                 print('breakeven target: ' + str(config.breakeven_target_price))
                 print('gap_to_sl: ' + str(config.gap_to_sl))
@@ -216,10 +216,19 @@ class ByBit:
     def calculate_crypto_required_qty(self, risk_amount, entry_price, stoploss):
         qty=0.0
         try:
-            qty = config.exchange.truncate((risk_amount / abs(Decimal(entry_price) - Decimal(stoploss))), config.max_precision)
+            qty = config.exchange.truncate((Decimal(risk_amount) / abs(Decimal(entry_price) - Decimal(stoploss))), config.max_precision)
         except Exception as e:
             pass
         return qty
+
+
+    def get_usdt_amount_using_crypto_qty(self, entry_price, stoploss, qty):
+        dollar_amount=0.0
+        try:
+            dollar_amount = config.exchange.truncate(abs(Decimal(entry_price) - Decimal(stoploss)) * qty, config.max_precision)
+        except Exception as e:
+            pass
+        return dollar_amount
 
 
     # You can view Maintenance Margin basic value under 'Contract Details' located on the bybit trading platform.
@@ -291,38 +300,37 @@ class ByBit:
             slippage_counter = 0
             # Red zone (ask price)
             for i in range(25, 50): # Range: This secton 25 (25 is excluded), 50 handles long orders (Ask Prices). 25 to 50 represents the red order book area. Hence, range(25, 50) stars from line 26 (not 25) to 50
+                slippage_counter += 1
+                config.slippage_counter = slippage_counter
                 if order_book[i].get('side') != 'Sell': # it's an issue, we expect to get side=Sell
                     telegram_send.send(messages=["CRITICAL - ByBit changed the response sequence of session.orderbook(). Ask price (Red Zone) used to appear from row 26 to 50 and Bid price (Greend Zone) used to appear from row 1 to 25. However, it looks like they switched it over. Go to your code get_entry_price_from_order_book() in ByBit.py and flip the ranges in the foor loop 'for i in range(fromX, toY)'"])
                     return -1
                 if slippage_counter > max_slippage_count:
-                    config.slippage_counter = slippage_counter
                     return -1 # -1 means we don't want to proceed with the order because it looks like our order would be 
                               # fulfilled in the later price tiers beyond max_slippage_count
                 ask_price = order_book[i].get('price')
                 aggregated_size = aggregated_size + Decimal(order_book[i].get('size'))
                 if qty <= aggregated_size:
-                    config.slippage_counter = slippage_counter
                     return ask_price # entry price for long order
-                slippage_counter += 1
         
         # Green zone (bid price)
         if type == config.SHORT:
             aggregated_size = Decimal(0.0)
             slippage_counter = 0
             for i in range(25): # Range: This secton 1 to 25 (25 is included) handles short orders (Bid Prices). 1 to 25 represents the green order book area
+                slippage_counter += 1
+                config.slippage_counter = slippage_counter
                 if order_book[i].get('side') != 'Buy': # it's an issue, we expect to get side=Buy
                     telegram_send.send(messages=["CRITICAL - ByBit changed the response sequence of session.orderbook(). Ask price (Red Zone) used to appear from row 26 to 50 and Bid price (Greend Zone) used to appear from row 1 to 25. However, it looks like they switched it over. Go to your code get_entry_price_from_order_book() in ByBit.py and flip the ranges in the foor loop 'for i in range(fromX, toY)'"])
                     return -1
                 if slippage_counter > max_slippage_count:
-                    config.slippage_counter = slippage_counter
                     return -1 # -1 means we don't want to proceed with the order because it looks like our order 
                               # would be fulfilled in the later price tiers beyond max_slippage_count
                 bid_price = order_book[i].get('price')
                 aggregated_size = aggregated_size + Decimal(order_book[i].get('size'))
                 if qty <= aggregated_size:
-                    config.slippage_counter = slippage_counter
                     return bid_price # entry price for short order
-                slippage_counter += 1
+                
  
 
     # determine_sl determines stoploss price by validating whether mid candle price (mid_price) is below the entry price for long trade and mid candle price is above
@@ -469,7 +477,7 @@ class ByBit:
     # Leverage simply lets you take a trade with your position size i.e. qty BUT with smaller position margin
     def get_minimum_required_leverage(self, qty, entry_price, available_bal):
         position_margin = Decimal(qty) * Decimal(entry_price)
-        min_required_leverage = position_margin / available_bal
+        min_required_leverage = Decimal(position_margin) / Decimal(available_bal)
         if min_required_leverage < 1: min_required_leverage = 1
         # Jack up the leverage a little up so we guarantee our position margin would be a little less than the available balance
         # and we won't end up mistakenly end up with insufficient margin error due to decimal rounding of position margin.
@@ -675,7 +683,7 @@ class ByBit:
             if side == config.SHORT: my_side = 'Buy'
 
         sl = config.exchange.truncate(stop_loss, config.max_precision) # Gives you decimal datatype
-        sl = str(sl) # You had to convert Decimal to string. 
+        sl = str(sl) # You had to convert Decimal to string. Otherwise, the api throws this exception Object of type Decimal is not JSON serializable 
                      # Wurzel Wurum said, the api is taking these params as 
                      # string, which allows to use the precision you/the exchange want (decimal datatypes are 
                      # usually represented as string internally, so decimal can be converted to string easily). What 
@@ -691,7 +699,8 @@ class ByBit:
                      # to float. I check the source code in github and I couldn't see float conversion, so we are good. Also, you can test
                      # SHIBA USDT to test how bybit behaves placing order for symbols priced in fractins like 0.0000xxx aka SHIB USDT or so.
                      # Dexter (pybit) developer said it does not cast/convert it to float; pybit takes your price string as it is and send it to bybit
-                     
+        qty = str(qty) # You had to convert Decimal to string. Otherwise, the api throws this exception Object of type Decimal is not JSON serializable 
+
         order_response_number = 0
         order_response = self.session.place_active_order(
                 symbol=symbol,
@@ -830,3 +839,4 @@ class ByBit:
 
         factor = Decimal(10.0) ** decimals
         return math.trunc(Decimal(number) * Decimal(factor)) / Decimal(factor)
+

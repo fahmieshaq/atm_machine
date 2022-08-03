@@ -47,26 +47,31 @@ available_balance = 0.0
 
 # Initialize debug variables. Debug variables will take place only if config.MY_DEBUG_MODE is True
 # Fyi, order type LONG or SHORT (tradingview_alert['type']) has to be changed from the tradingview alert json request
-debug_leverage_val=1
-debug_my_qty_val=0.035
-debug_sl_price_val=22721
+debug_leverage_val=Decimal(1)
+debug_my_qty_val=Decimal(12)         #Set it to 0 if you want to pick the actual risk management value during MY_DEBUG_MODE
+debug_sl_price_val=Decimal(38.045)  #Set it to 0 if you want to pick the actual risk management value during MY_DEBUG_MODE
 
 # The moment you initiate the app, connect to the exchange
 config.exchange = ByBit()
 
 @app.route("/webhook1", methods=['POST'])
 def webhook1():
-    config.exchange.read_global_variables_from_file(config.GLOBAL_VARS_FILE)
-    if config.MY_DEBUG_MODE:
-        print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
-        print('symbol: ' + config.symbol)
-        print('entry price: ' + str(config.entry_price))
-        print('stoploss: ' + str(config.stoploss))
-        print('profit target: ' + str(config.profit_target_price))
-        print('breakeven target: ' + str(config.breakeven_target_price))
-        print('gap_to_sl: ' + str(config.gap_to_sl))
-        print('tick_size: ' + str(config.tick_size))
-        print('max_precision: ' + str(config.max_precision))
+    config.max_precision=3
+    my_qty = config.exchange.calculate_crypto_required_qty(risk_amount='10.0', entry_price='46.444', stoploss='40.4')
+    print(my_qty)
+    usdt_dollar = config.exchange.get_usdt_amount_using_crypto_qty(qty=my_qty, entry_price='46.444', stoploss='40.4')
+    print(usdt_dollar)
+    # config.exchange.read_global_variables_from_file(config.GLOBAL_VARS_FILE)
+    # if config.MY_DEBUG_MODE:
+    #     print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
+    #     print('symbol: ' + config.symbol)
+    #     print('entry price: ' + str(config.entry_price))
+    #     print('stoploss: ' + str(config.stoploss))
+    #     print('profit target: ' + str(config.profit_target_price))
+    #     print('breakeven target: ' + str(config.breakeven_target_price))
+    #     print('gap_to_sl: ' + str(config.gap_to_sl))
+    #     print('tick_size: ' + str(config.tick_size))
+    #     print('max_precision: ' + str(config.max_precision))
     return {'code': 'error'}
 
 # This webhook receives tradingview alert json request. We process the json request and place an order in the exchange
@@ -99,9 +104,9 @@ def webhook():
         try:
             config.exchange.compare_local_time_with_exchange_server_time()
             msg_is_debug_mode = '[DEBUG MODE: True] '
-            leverage=debug_leverage_val # This will take affect if SKIP_VALIDATION is set to True
-            my_qty=debug_my_qty_val     # This will take affect if SKIP_VALIDATION is set to True
-            sl_price=debug_sl_price_val # This will take affect if SKIP_VALIDATION is set to True
+            leverage=debug_leverage_val # This will only take affect if DEBUG_SKIP_VALIDATION is set to True
+            my_qty=debug_my_qty_val     # This will take affect whether DEBUG_SKIP_VALIDATION is set to True or False. Its subjective, search for the other my_qty=debug_my_qty_val for more info
+            sl_price=debug_sl_price_val # This will only take affect if DEBUG_SKIP_VALIDATION is set to True
         except Exception as e:
             print('Disconnected from bybit server due to this exception: ' + str(e))
     
@@ -186,19 +191,20 @@ def webhook():
             return {'code': 'error', 'message': msg}
         
 
-        risk_amount = available_balance * Decimal(config.RISK_PERCENTAGE) # Determine your risk amount in dollars
+        risk_amount = available_balance * Decimal(config.RISK_PERCENTAGE) # Determine your risk amount in dollars. Its the amount we want to risk
         models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, 
                                                 exg_avail_balance=available_balance,
                                                 my_risk_perc=config.RISK_PERCENTAGE,
                                                 my_risk_amount=risk_amount,
                                                 notes=msg_is_debug_mode + '[Passed] get_available_usdt_balance()')
 
-        if not config.SKIP_VALIDATION:
+        if not config.DEBUG_SKIP_VALIDATION:
             # --- 2. determine the possible entry price ---
             mark_price, bid_price, ask_price, last_price = config.exchange.get_latest_symbol_info(symbol=tradingview_alert['symbol'])
-            # ask_price is best buy entry price and bid_price is best short entry price. Nevertheless, last_price is the one you see on the chart's Y axis
-            # if tradingview_alert['type'] == config.LONG: possible_entry_price = ask_price
-            # if tradingview_alert['type'] == config.SHORT: possible_entry_price = bid_price
+
+            # ask_price is best buy entry price and bid_price is best short entry price. We will use it to calculate position size (qty)
+            if tradingview_alert['type'] == config.LONG: best_entry_price = ask_price
+            if tradingview_alert['type'] == config.SHORT: best_entry_price = bid_price
 
             # --- 3. determine proper stoploss ---
             # mid_price is the stoploss. Its a mid price of previous candle between open and close.
@@ -214,13 +220,21 @@ def webhook():
             # we only use sl_mark_price later on to check if our sl_mark_price hits before liquidation price or not; sl_mark_price has no other use. For rest of
             # risk management calculations, we use sl_price that is bybit platform's last traded stoploss price. To know more about ticks_buffer, go to determine_sl
             # definition in bybit.py. I entered last_price value as possible_entry_price because when I determine our SL visually, I look at last price on chart.
-            # possible_entry_price is good estimated entry for calculating position size aka qty.
+            # last_price aka possible_entry_price allows us to know whether our elected SL is below or above last price and last_price does not have any other role here
             sl_price, sl_mark_price = config.exchange.determine_sl(symbol=tradingview_alert['symbol'], possible_entry_price=last_price, mid_price=mid_price, \
                                                 open=open, close=close, high=high, low=low, is_candle_green=is_candle_green, \
                                                 mid_candle_mark_price=mid_mprice, open_mark_price=open_m, close_mark_price=close_m, high_mark_price=high_m, \
                                                 low_mark_price=low_m, is_candle_green_for_mark_price=is_candle_green_m, \
                                                 type=tradingview_alert['type'], ticks_buffer=config.SL_TICKS_BUFFER)
-
+            
+            if config.MY_DEBUG_MODE:
+                if debug_sl_price_val == 0:
+                    pass
+                else:
+                    sl_price=debug_sl_price_val
+                print('[Debug Mode] last price: ' + str(last_price))
+                print('[Debug Mode] stoploss: ' + str(sl_price))
+                
             if sl_price == -1: # sl_price = -1 means there wasn't a proper stoploss, so ignore the trade
                 msg = msg_is_debug_mode + '[Issue] determine_sl() - Issue with determining stoploss.'
                 models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, notes=msg)
@@ -228,30 +242,31 @@ def webhook():
 
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False,  
                                                     my_init_sl_price=sl_price, my_init_sl_mark_price=sl_mark_price,
-                                                    my_init_entry_price=last_price,
+                                                    my_init_entry_price=best_entry_price,
                                                     notes=msg_is_debug_mode + '[Passed] determine_sl()')
 
-            # --- 4. calculate our required qty that lets us lose our risk amount at most once the trade (last traded price aka entry price in the platform) hits our SL price (last traded price not mark price) ---
-            my_qty = config.exchange.calculate_crypto_required_qty(risk_amount=risk_amount, entry_price=last_price, stoploss=sl_price)
+            # --- 4. calculate our required qty that lets us lose our risk amount at most once our trade (best price is last trade price) hits our SL price (SL is last traded price not mark price) ---
+            my_qty = config.exchange.calculate_crypto_required_qty(risk_amount=risk_amount, entry_price=best_entry_price, stoploss=sl_price) # best_entry_price is the best price in order book without slippage
             if my_qty <= 0:
                 msg = msg_is_debug_mode + '[Issue] calculate_crypto_required_qty() - Issue with qty. Probably there was divison by zero exception because the previous bar is too thin like a dash and so the current is too thin like a dash as well due to very low volatility.'
                 models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_qty=my_qty, notes=msg)
                 return {'code': 'error', 'message': msg}
 
-            my_init_ep_sl_gap = abs(Decimal(last_price) - Decimal(sl_price))
+            if config.MY_DEBUG_MODE:
+                print('[Debug Mode] risk amount: ' + str(risk_amount))
+                print('[Debug Mode] pre-orderbook my_qty: ' + str(my_qty))
+                print('[Debug Mode] pre-orderbook best_entry_price: ' + str(best_entry_price))
+                print('[Debug Mode] pre-orderbook sl_price: ' + str(sl_price))
+
+            my_init_ep_sl_gap = abs(Decimal(best_entry_price) - Decimal(sl_price)) # This does not necessarily reflect the actual estimated gap of the order you are about to 
+                                                                             # make! my_init_best_ord_book_ep_sl_gap below gives you more accurate gap that would almost
+                                                                             # match the exchange's gap. We store my_init_ep_sl_gap for our reference only.
+                                                                             # The gap between sl and last price here does not consider slippages, the higher the slippage
+                                                                             # the bigger the gap and the only way to know if we'll encounter a slippage is to go take
+                                                                             # my_qty and check it in the order book; hence, we are doing it in the next step get_entry_price_from_order_book()
+                                                                             # my_init_ep_sl_gap would match the exchange's gap if our order does not encounter slippages
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_qty=my_qty, my_init_ep_sl_gap=my_init_ep_sl_gap,
                                                     notes=msg_is_debug_mode + '[Passed] calculate_crypto_required_qty()')
-
-            # --- 5. now determine the most possibly accurate entry price we anticipate bybit would pick for our market order. ---
-            # Why didn't we the actual entry price right from the beginning? Why we had to pick possible entry price and then actual entry price?
-            # Because to identify the actual entry price (closest accurate price) from the order book, we need to know our required qty first and based
-            # on the required qty, we can look at the order book and estimate the actual entry price at that moment. You cannot get required qty
-            # until you have an entry price, so I had get the estimated entry price (best ask/bid price) from latest symbol api response just to calculate
-            # the required qty and based on our qty, we leech into the order book to pick best estimated (actual) entry price that I expect ByBit to pick
-            # for my market order execution. To know more about picking from order book, please refer to my personal video in the "--- Order Book ---" section 
-            # in my KnowledgeNotes.txt
-            def get_entry_price_from_order_book():
-                return config.exchange.get_entry_price_from_order_book(symbol=tradingview_alert['symbol'], qty=my_qty, type=tradingview_alert['type'])
 
             # During risk management validation process you face challenges with quantity
             # as sometimes we get high quantity that requires multiple price tiers from the
@@ -267,9 +282,24 @@ def webhook():
             # BTCUSDT in the live account can be expensive if you don't have proper capital. I found out that adding
             # high risk amount with a tight stoploss here calculate_crypto_required_qty() yields to quantity.
             if config.MY_DEBUG_MODE:
-                my_qty=debug_my_qty_val # force a low quantity so rest of validations below don't stop you as often.
+                if debug_my_qty_val == 0:
+                    pass # pass means lets use the calculated qty and avoid using the harcoded one debug_my_qty_val
+                else:
+                    my_qty=debug_my_qty_val # force a low quantity so rest of validations below don't stop you as often.
                                         # Hence, I had to do this because I was testing with BTCUSDT. If you test
                                         # with averagely priced symbols like SOLUSDT, you may not face qunatity validation issues
+
+
+            # --- 5. now determine the most possibly accurate entry price we anticipate bybit would pick for our market order. ---
+            # Why didn't we the actual entry price right from the beginning? Why we had to pick possible entry price and then actual entry price?
+            # Because to identify the actual entry price (closest accurate price) from the order book, we need to know our required qty first and based
+            # on the required qty, we can look at the order book and estimate the actual entry price at that moment. You cannot get required qty
+            # until you have an entry price, so I had get the estimated entry price (best ask/bid price) from latest symbol api response just to calculate
+            # the required qty and based on our qty, we leech into the order book to pick best estimated (actual) entry price that I expect ByBit to pick
+            # for my market order execution. To know more about picking from order book, please refer to my personal video in the "--- Order Book ---" section 
+            # in my KnowledgeNotes.txt
+            def get_entry_price_from_order_book():
+                return config.exchange.get_entry_price_from_order_book(symbol=tradingview_alert['symbol'], qty=my_qty, type=tradingview_alert['type'])
 
             retry_counter = 0
             actual_entry_price = get_entry_price_from_order_book()
@@ -278,17 +308,51 @@ def webhook():
                 sleep(3)
                 actual_entry_price = get_entry_price_from_order_book()
                 
-            if actual_entry_price == -1: # most probably we are facing slippage issues.
-                msg = msg_is_debug_mode + '[Issue] get_entry_price_from_order_book() - Issues with fetching actual entry price due to high slippage. My slippage counter is ' + str(config.slippage_counter) + ' and our max slippage price tier config is ' + str(config.MAX_SLIPPAGE_PRICE_TIER)
+            if actual_entry_price == -1 or actual_entry_price is None: # most probably we are facing slippage issues. Sometimes for uncelar reasons, get_entry_price_from_order_book() returns None
+                msg = msg_is_debug_mode + '[Issue] get_entry_price_from_order_book() - Issues with fetching actual entry price due to high slippage. My slippage counter is ' + str(config.slippage_counter) + '+ and our max slippage price tier config is ' + str(config.MAX_SLIPPAGE_PRICE_TIER)
                 models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, notes=msg,
                                                         my_slippage_counter=config.slippage_counter)
                 return {'code': 'error', 'message': msg}
 
+            # --- 5.1. Re-calculate our qty using the actual entry entry because actual entry price simulates the entry price if you were to execute the order now ---
+            # actual_entry_price is the closest price the real price you'd get after executing the order. Acutal_entry_price considers the slippages if applicable.
+            # To estimate the entry price of a market order, you need to have qty; no other way. Thus, we first had to get qty using the best price as entry price.
+            # best_entry_price does not consider the slippage, it simply represents the best ask price for a long order and best bid price for a short order.
+            # If actual_entry_price did not encounter slippages then most probably actual_entry_price would be almost close or identical to best_entry_price, and so
+            # qty as well remain same. However, if a slippage happens then actual_entry_price would little far from best_entry_price. Thus, my_qty value would change
+            # after qty. Nevertheless, the risk amount will remain the same. Qty tends to be higher for a tight stoploss and qty tends to be lower for a large stoploss,
+            # which means the larger the gap between entry price and stoploss, the lower the qty and the tighter the gap, the higher the qty AND risk amount remains same
+            my_qty = config.exchange.calculate_crypto_required_qty(risk_amount=risk_amount, entry_price=actual_entry_price, stoploss=sl_price)
+            if my_qty <= 0:
+                msg = msg_is_debug_mode + '[Issue] Recalculate qty with calculate_crypto_required_qty() using the entry price from get_entry_price_from_order_book() - Issue with qty. Probably there was divison by zero exception because the previous bar is too thin like a dash and so the current is too thin like a dash as well due to very low volatility.'
+                models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_qty=my_qty, notes=msg)
+                return {'code': 'error', 'message': msg}
+
+            # Get the gap between actual entry price and sl
             my_init_best_ord_book_ep_sl_gap = abs(Decimal(actual_entry_price) - Decimal(sl_price))
+
+            if config.MY_DEBUG_MODE:
+                if debug_my_qty_val == 0:
+                    pass
+                else:
+                    my_qty=debug_my_qty_val
+
+            # Get risk amount after applying the actual entry price. This step is added for conformity only. Nothing much
+            my_expected_risk_amount = config.exchange.get_usdt_amount_using_crypto_qty(entry_price=actual_entry_price, stoploss=sl_price, qty=my_qty)
+            
+            if config.MY_DEBUG_MODE:
+                print('[Debug Mode] my_expected_risk_amount: ' + str(my_expected_risk_amount))
+                print('[Debug Mode] post-orderbook my_qty: ' + str(my_qty))
+                print('[Debug Mode] post-orderbook actual entry price: ' + str(actual_entry_price))
+                print('[Debug Mode] post-orderbook sl_price: ' + str(sl_price))
+                print('[Debug Mode] post-orderbook slippage_counter: ' + str(config.slippage_counter))
+                
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, 
                                                     my_init_best_order_book_price=actual_entry_price, 
                                                     my_slippage_counter=config.slippage_counter,
                                                     my_init_best_ord_book_ep_sl_gap=my_init_best_ord_book_ep_sl_gap,
+                                                    my_expected_risk_amount=my_expected_risk_amount,
+                                                    my_qty=my_qty,
                                                     notes=msg_is_debug_mode + '[Passed] get_entry_price_from_order_book()')
 
             # --- 6. Identify the minimum leverag I can use to place the trade. We do this step to avoid 'insufficient margin error' when placing a trade ---
@@ -301,6 +365,9 @@ def webhook():
                 msg = msg_is_debug_mode + '[Issue] get_minimum_required_leverage() - Too much leverage ' + str(leverage) + 'x over our max leverage config ' + str(config.MAX_LEVERAGE) + 'x'
                 models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, notes=msg, my_leverage=leverage)
                 return {'code': 'error', 'message': msg}
+            
+            if config.MY_DEBUG_MODE:
+                print('[Debug Mode] leverage: ' + str(leverage))
 
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_leverage=leverage,
                                                     notes=msg_is_debug_mode + '[Passed] get_minimum_required_leverage()')
@@ -350,7 +417,7 @@ def webhook():
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_sl_vs_liq_gap_perc=sl_vs_liq_gap, 
                                                     my_mark_sl_vs_liq_gap_perc=mark_sl_vs_liq_gap,
                                                     notes=msg_is_debug_mode + '[Passed] The gap between stoploss and liquidation price is ' + str(mark_sl_vs_liq_gap) + '% LARGER than minimum threshold ' + str(config.LIQ_GAP_PERC) + '%.')
-        ############## END - if not config.SKIP_VALIDATION #################
+        ############## END - if not config.DEBUG_SKIP_VALIDATION #################
 
         # --- 9. Make sure your system is in Isolated Margin mode and setup the leverage ---
         config.exchange.set_isolated_margin(symbol=tradingview_alert['symbol'], leverage=leverage)
@@ -416,6 +483,7 @@ def webhook():
         # --- 11. Get your open position entry price and stoploss (These are the final prices that got executed in the platform) ---
         entry_price, stoploss, liq_price, is_isolated, pos_margin, leverage, qty = config.exchange.get_open_position_info(symbol=tradingview_alert['symbol'])
         points_between_ep_and_sl = abs(entry_price - stoploss)
+        exg_risk_amount = config.exchange.get_usdt_amount_using_crypto_qty(entry_price=entry_price, stoploss=stoploss, qty=qty)
 
         # store into db
         models_utils.update_tradingview_alert(id=config.tvalert_id, 
@@ -428,6 +496,7 @@ def webhook():
                                                 exg_trailed_sl_price=stoploss,
                                                 exg_qty=qty,
                                                 exg_init_ep_sl_gap=points_between_ep_and_sl,
+                                                exg_risk_amount=exg_risk_amount,
                                                 notes=msg_is_debug_mode + '[Passed] Order executed. You are at get_open_position_info()')
 
         # --- 12. Identify our target prices ----
@@ -461,6 +530,7 @@ def webhook():
         if config.MY_DEBUG_MODE:
             print('************ Start ' + config.side + ' Trading ***********')
             print('symbol: ' + tradingview_alert['symbol'])
+            print('qty: ' + str(config.init_qty))
             print('entry price: ' + str(entry_price))
             print('stoploss: ' + str(stoploss))
             print('profit target: ' + str(profit_target_price))
@@ -522,7 +592,7 @@ if __name__ == "__main__":
             config.run_ws_flag = False
         else:
             pass # Ignore. We don't have an active websocket
-    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=False) # Sometimes its better to set realoder to False. Re-loader 
+    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=True) # Sometimes its better to set realoder to False. Re-loader 
                                                                # is useful if you don't want to re-run local server after every change
                                                                # However, re-loadeder tends to double execute main() commands after 
                                                                # saving every code modification
