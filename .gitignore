@@ -130,3 +130,4 @@ dmypy.json
 
 #### My atm_machine files ####
 keys.py
+my_global_vars.pickle
