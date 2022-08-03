@@ -35,7 +35,7 @@ class ByBit:
     # there isn't a connection to the exchange due to internet failure, etc. You can
     # call connect_to_exchange() wherever you want to re-assure server's connection
     def connect_to_exchange(self):
-        self.check_bybit_connection()
+        self.check_exchange_connection()
 
         retry_counter = 0
         if config.MY_DEBUG_MODE:
@@ -54,7 +54,7 @@ class ByBit:
             else:
                 self.session = HTTP(config.LIVE_ENDPOINT, api_key=keys.LIVE_API_KEY, api_secret=keys.LIVE_API_SECRET, recv_window=config.RECV_WINDOW)
 
-            # Check the connection here. We could call self.check_bybit_connection() but I didn't due to
+            # Check the connection here. We could call self.check_exchange_connection() but I didn't due to
             # deadline constraints and I wasn't ready to retest the refactor
             try:
                 if(self.session.server_time()):
@@ -65,7 +65,7 @@ class ByBit:
                 self.is_connected = False
                 if config.MY_DEBUG_MODE:
                     print('[Debug Mode] Issue with ByBit server. Wait for 3 seconds and retry. Attempt# ' + str(retry_counter) + ' out of ' + str(config.MAX_RETRY_COUNTER_FOR_HTTP_CONNECT))
-                sleep(3)
+                sleep(config.SLEEP_SECONDS_FAST)
 
         if self.is_connected == False:
             self.is_critical_http_occured = True
@@ -118,7 +118,7 @@ class ByBit:
                 all_positions = self.session.my_position()
             except Exception as e:
                 retry_count += 1
-                sleep(3)
+                #sleep(3)
                 self.connect_to_exchange()
                 is_exception_found = True
             else: # if try block doesn't thorw exception, execute the code inside else
@@ -156,7 +156,7 @@ class ByBit:
                 all_positions = self.session.my_position()
             except Exception as e:
                 retry_count += 1
-                sleep(3)
+                #sleep(3)
                 self.connect_to_exchange()
                 is_exception_found = True
             else: # if try block doesn't thorw exception, execute the code inside else
@@ -209,7 +209,7 @@ class ByBit:
             ws_kline_thread = Thread(target=ws_kline.ws_kline_fun, args=(config.symbol, config.stop_order_id, config.side), name=config.WS_KLINE_NAME)
             ws_kline_thread.start()
         else:
-            pass # We don't create another stop ws because its already running
+            pass # We don't create another kline ws because its already running
 
 
     # You can validate it here https://www.cashbackforex.com/tools/position-size-calculator/BTCUSD
@@ -233,7 +233,7 @@ class ByBit:
 
     # You can view Maintenance Margin basic value under 'Contract Details' located on the bybit trading platform.
     def get_maintenance_margin_rate(self, symbol, qty, entry_price):
-        self.connect_to_exchange()
+        #self.connect_to_exchange()
         position_value = Decimal(qty) * Decimal(entry_price) # position_value is the value that you see under Positions tab -> Value column in the trading platform
         result = self.session.get_risk_limit(symbol=symbol).get('result')
         mmr_value = 0.0
@@ -403,7 +403,7 @@ class ByBit:
 
 
     def get_latest_symbol_info(self, symbol):
-        self.connect_to_exchange()
+        #self.connect_to_exchange()
         latest_info_symbol = self.session.latest_information_for_symbol(symbol=symbol).get('result')
         mark_price = latest_info_symbol[0].get('mark_price')
         highest_bid_price = latest_info_symbol[0].get('bid_price') # entry price for short order. Fetches the highest bid price (green zone) from order book (1st price tier). I manually validated with ByBit platform order book successfully. Its accurate.
@@ -413,14 +413,14 @@ class ByBit:
 
 
     def get_available_usdt_balance(self):
-        self.connect_to_exchange()
+        #self.connect_to_exchange()
         available_balance = self.session.get_wallet_balance(coin="USDT").get('result').get('USDT').get('available_balance')
         return Decimal(available_balance)
 
 
     # Source: https://bybit-exchange.github.io/docs/inverse/#t-querysymbol
     def get_tick_size(self, symbol):
-        self.connect_to_exchange()
+        #self.connect_to_exchange()
         result = self.session.query_symbol().get('result') # gives you back all symbols
         tick_size = Decimal(0.0)
         price_scale = Decimal(0.0)
@@ -682,7 +682,7 @@ class ByBit:
             if side == config.LONG: my_side = 'Sell'
             if side == config.SHORT: my_side = 'Buy'
 
-        sl = config.exchange.truncate(stop_loss, config.max_precision) # Gives you decimal datatype
+        sl = config.exchange.truncate(stop_loss, config.max_precision) # Gives you decimal datatype 
         sl = str(sl) # You had to convert Decimal to string. Otherwise, the api throws this exception Object of type Decimal is not JSON serializable 
                      # Wurzel Wurum said, the api is taking these params as 
                      # string, which allows to use the precision you/the exchange want (decimal datatypes are 
@@ -808,7 +808,7 @@ class ByBit:
         print('Exchange server time: ' + datetime.utcfromtimestamp(exg_server_time).strftime('%Y-%m-%d %H:%M:%S')) # convert unix time to a readable format
 
         local_server_time = int(time.time())
-        print('WSL2 time: ' + datetime.utcfromtimestamp(local_server_time).strftime('%Y-%m-%d %H:%M:%S')) # convert unix time to a readable format
+        print('Local time: ' + datetime.utcfromtimestamp(local_server_time).strftime('%Y-%m-%d %H:%M:%S')) # convert unix time to a readable format
  
     
     # API response timezone is UTC always. API datetime looks like 2022-06-23T04:06:55.402188346Z. I use substring to pick 2022-06-23T04:06:55 only and exclude fractional seconds 
@@ -817,7 +817,7 @@ class ByBit:
 
 
     # Check whether we are connected to bybit server
-    def check_bybit_connection(self):
+    def check_exchange_connection(self):
         try:
             self.session.server_time()
             self.is_connected = True

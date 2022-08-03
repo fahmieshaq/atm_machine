@@ -1,27 +1,27 @@
 # Constants used across the application
 TARGET_EXCHANGE='BYBIT' # Decide what exchange does this program interacts with. This value should match the exchange name that we received from tradingview alert
-TESTNET_FLAG = True     # If True, the program connects to testnet. Otherwie, it connects to the live server (mainnet)
+TESTNET_FLAG = False     # If True, the program connects to testnet. Otherwie, it connects to the live server (mainnet)
 TESTNET_ENDPOINT = 'https://api-testnet.bybit.com'
 LIVE_ENDPOINT = 'https://api.bybit.com'
 RECV_WINDOW = 5000          # recv_window is in milliseconds and its used when connecting to the exchange's server via HTTP()
-FLASK_DEBUG_FLAG = True     # Set it to False once you deploy to production
-MY_DEBUG_MODE=True          # This flag switches my code to be debugging friendly. This allows you to print values for easy visual tracking and debugging purposes 
-DEBUG_SKIP_VALIDATION=False        # This flag switches my code to be debugging friendly. This allows you to test place market order by skipping all of the pre-order validations such as risk management calculations, etc. 
+FLASK_DEBUG_FLAG = False     # Set it to False once you deploy to production
+MY_DEBUG_MODE=False          # This flag switches my code to be debugging friendly. This allows you to print values for easy visual tracking and debugging purposes 
+SKIP_VALIDATION=False        # This flag switches my code to be debugging friendly. This allows you to test place market order by skipping all of the pre-order validations such as risk management calculations, etc. 
 WS_TRACE_LOGGING = False    # Set it to True if you want your websockets to throw logs. Its useful for debugging complex websocket issues.
 LONG = 'LONG'               # This value should match the one we receive from tradingview alert json request
 SHORT = 'SHORT'             # This value should match the one we receive from tradingview alert json request
 EXECUTE_MARKET_ORDER = 'EXECUTE_MARKET_ORDER' # This value should match the one we receive from tradingview alert json request
-LIQ_GAP_PERC = 8            # this number represents a fraction of a 100 e.g. 8 means 8%, 1 means 1%, 0.4 means 0.4% (less than 1%), etc. Its the minimum threshold for the gap between stoploss and liquidation price
-BREAKEVEN_RW_RATIO = 0.5    # Its risk-reward ratio i.e. 1x, 10x, etc. Make sure its 1.5 before deploying to prod
-PROFIT_RW_RATIO = 1       # Its risk-reward ratio i.e. 1x, 10x, etc. Mke sure its 5 before deploying to prod
+LIQ_GAP_PERC = 10            # this number represents a fraction of a 100 e.g. 8 means 8%, 1 means 1%, 0.4 means 0.4% (less than 1%), etc. Its the minimum threshold for the gap between stoploss and liquidation price
+BREAKEVEN_RW_RATIO = 1.5    # Its risk-reward ratio i.e. 1x, 10x, etc. Make sure its 1.5 before deploying to prod
+PROFIT_RW_RATIO = 5      # Its risk-reward ratio i.e. 1x, 10x, etc. Mke sure its 5 before deploying to prod
 WS_PING_INTERVAL_SECS = 30  # Its used when create web socket connection
 WS_PING_TIMEOUT_SECS = 20   # Its used when create web socket connection
 MAX_LEVERAGE = 5            # That's the maximum threshold for leverage I'm willing to go for.
 RISK_PERCENTAGE = 0.01    # How much money I'm willing to risk per trade. 0.01 is 1%, 0.05 is 5%, 1 is 100%
 GLOBAL_VARS_FILE = 'my_global_vars.pickle' # Its the file name that holds my global variable values
 MAX_SLIPPAGE_PRICE_TIER = 3                     # The number represents the nth price tier in the order book.
-MAX_RETRY_COUNTER_FOR_HIGH_SLIPPAGE = 3         # I retry calling some failed APIs. This count defines the maximum retry I'm willing to go for.
-MAX_RETRY_COUNTER_FOR_HTTP_CONNECT = 10         # I retry calling some failed APIs. This count defines the maximum retry I'm willing to go for.
+MAX_RETRY_COUNTER_FOR_HIGH_SLIPPAGE = 6         # I retry calling some failed APIs. This count defines the maximum retry I'm willing to go for.
+MAX_RETRY_COUNTER_FOR_HTTP_CONNECT = 50         # I retry calling some failed APIs. This count defines the maximum retry I'm willing to go for.
 MAX_RETRY_COUNTER_FOR_CHECKING_OPEN_POS = 10    # I retry calling some failed APIs. This count defines the maximum retry I'm willing to go for.
 MAX_RETRY_COUNTER_FOR_PLACE_ACTIVE_ORDER = 3    # I retry calling some failed APIs. This count defines the maximum retry I'm willing to go for.
 WS_KLINE_NAME='ws_kline_thread'                 # Its used for initializing websocket connection
@@ -36,6 +36,11 @@ SL_TICKS_BUFFER=0                               # Its used in determine_sl() to 
                                                 # However, if our ticker_buffer is 0, our stoploss won't shift; it'll remain at $5. 
                                                 # Check for an alternative SL logic in KnowledgeBase/AlternativeCode.txt file under "Alternative SL Logic" section
                                                 # The logic below is equivelant to the one I have in tradingview backtest strategy.
+SL_CANDLE_IDX=2                                 # Identifies the candle index we are going to use to derive the stoploss from. SL is stoploss. 1 means current candle. 2 previous candle, etc. 
+SLEEP_SECONDS_FAST=0.5                          # This is used in sleep(#) whereas # is the constant and it represents actual seconds NOT milliseconds or so.
+SLEEP_SECONDS_AVG=3                             # This is used in sleep(#) whereas # is the constant and it represents actual seconds NOT milliseconds or so.
+SLEEP_SECONDS_SLOW=5                            # This is used in sleep(#) whereas # is the constant and it represents actual seconds NOT milliseconds or so.
+
 
 ###################### Global Variables ###########################
 #[IMPORTANT #1]: Whenever you add a new global variable that requires resetting, make sure you reset it in bybit.py inside reset_global_variables

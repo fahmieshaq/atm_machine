@@ -2,7 +2,7 @@ Before deploying your code to production, make sure to do the following:
 
 1. Go to config.py and set TESTNET_FLAG to False
 2. Go to config.py and set FLASK_DEBUG_FLAG to False
-3. Go to config.py and set MY_DEBUG_MODE and DEBUG_SKIP_VALIDATION to False
+3. Go to config.py and set MY_DEBUG_MODE and SKIP_VALIDATION to False
 4. Go to config.py and set WS_TRACE_LOGGING to False
 5. Go to config.py and set BREAKEVEN_RW_RATIO to 1.5
 6. Go to config.py and set PROFIT_RW_RATIO to 5

@@ -48,31 +48,12 @@ available_balance = 0.0
 # Initialize debug variables. Debug variables will take place only if config.MY_DEBUG_MODE is True
 # Fyi, order type LONG or SHORT (tradingview_alert['type']) has to be changed from the tradingview alert json request
 debug_leverage_val=Decimal(1)
-debug_my_qty_val=Decimal(12)         #Set it to 0 if you want to pick the actual risk management value during MY_DEBUG_MODE
-debug_sl_price_val=Decimal(38.045)  #Set it to 0 if you want to pick the actual risk management value during MY_DEBUG_MODE
+debug_my_qty_val=Decimal(10000)        #Set it to 0 if you want to pick the actual risk management value during MY_DEBUG_MODE. SKIP_VALIDATION has to be False for risk management to apply
+debug_sl_price_val=Decimal(0.0119955)  #Set it to 0 if you want to pick the actual risk management value during MY_DEBUG_MODE. SKIP_VALIDATION has to be False for risk management to apply
 
 # The moment you initiate the app, connect to the exchange
 config.exchange = ByBit()
 
-@app.route("/webhook1", methods=['POST'])
-def webhook1():
-    config.max_precision=3
-    my_qty = config.exchange.calculate_crypto_required_qty(risk_amount='10.0', entry_price='46.444', stoploss='40.4')
-    print(my_qty)
-    usdt_dollar = config.exchange.get_usdt_amount_using_crypto_qty(qty=my_qty, entry_price='46.444', stoploss='40.4')
-    print(usdt_dollar)
-    # config.exchange.read_global_variables_from_file(config.GLOBAL_VARS_FILE)
-    # if config.MY_DEBUG_MODE:
-    #     print('************ Continue ' + config.side + ' Trading [Read Global Vairables from File] ***********')
-    #     print('symbol: ' + config.symbol)
-    #     print('entry price: ' + str(config.entry_price))
-    #     print('stoploss: ' + str(config.stoploss))
-    #     print('profit target: ' + str(config.profit_target_price))
-    #     print('breakeven target: ' + str(config.breakeven_target_price))
-    #     print('gap_to_sl: ' + str(config.gap_to_sl))
-    #     print('tick_size: ' + str(config.tick_size))
-    #     print('max_precision: ' + str(config.max_precision))
-    return {'code': 'error'}
 
 # This webhook receives tradingview alert json request. We process the json request and place an order in the exchange
 # This webhook takes one alert at a time only and it never processes an alert if we already have an open position. Also,
@@ -104,9 +85,9 @@ def webhook():
         try:
             config.exchange.compare_local_time_with_exchange_server_time()
             msg_is_debug_mode = '[DEBUG MODE: True] '
-            leverage=debug_leverage_val # This will only take affect if DEBUG_SKIP_VALIDATION is set to True
-            my_qty=debug_my_qty_val     # This will take affect whether DEBUG_SKIP_VALIDATION is set to True or False. Its subjective, search for the other my_qty=debug_my_qty_val for more info
-            sl_price=debug_sl_price_val # This will only take affect if DEBUG_SKIP_VALIDATION is set to True
+            leverage=debug_leverage_val # This will only take affect if SKIP_VALIDATION is set to True
+            my_qty=debug_my_qty_val     # This will take affect whether SKIP_VALIDATION is set to True or False. Its subjective, search for the other my_qty=debug_my_qty_val for more info
+            sl_price=debug_sl_price_val # This will only take affect if SKIP_VALIDATION is set to True
         except Exception as e:
             print('Disconnected from bybit server due to this exception: ' + str(e))
     
@@ -198,7 +179,7 @@ def webhook():
                                                 my_risk_amount=risk_amount,
                                                 notes=msg_is_debug_mode + '[Passed] get_available_usdt_balance()')
 
-        if not config.DEBUG_SKIP_VALIDATION:
+        if not config.SKIP_VALIDATION:
             # --- 2. determine the possible entry price ---
             mark_price, bid_price, ask_price, last_price = config.exchange.get_latest_symbol_info(symbol=tradingview_alert['symbol'])
 
@@ -214,8 +195,9 @@ def webhook():
             # is_candle_green refers to the candle of our previous_candle_index value.
             # Warning: get_1_min_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_1_min_candle_info()
             # you have to test it in live environment not testnet; for testing it in live server, just go to TESTNET_FLAG and set it to False
+            # We return one candle ONLY candle that is positioned in SL_CANDLE_IDX
             mid_price, open, close, high, low, is_candle_green, \
-            mid_mprice, open_m, close_m, high_m, low_m, is_candle_green_m = config.exchange.get_1_min_candle_info(symbol=tradingview_alert['symbol'], previous_candle_index=2)
+            mid_mprice, open_m, close_m, high_m, low_m, is_candle_green_m = config.exchange.get_1_min_candle_info(symbol=tradingview_alert['symbol'], previous_candle_index=config.SL_CANDLE_IDX)
 
             # we only use sl_mark_price later on to check if our sl_mark_price hits before liquidation price or not; sl_mark_price has no other use. For rest of
             # risk management calculations, we use sl_price that is bybit platform's last traded stoploss price. To know more about ticks_buffer, go to determine_sl
@@ -303,9 +285,9 @@ def webhook():
 
             retry_counter = 0
             actual_entry_price = get_entry_price_from_order_book()
-            while actual_entry_price == -1 and retry_counter < config.MAX_RETRY_COUNTER_FOR_HIGH_SLIPPAGE: 
+            while (actual_entry_price == -1 or actual_entry_price is None) and retry_counter < config.MAX_RETRY_COUNTER_FOR_HIGH_SLIPPAGE: 
                 retry_counter += 1
-                sleep(3)
+                sleep(config.SLEEP_SECONDS_FAST)
                 actual_entry_price = get_entry_price_from_order_book()
                 
             if actual_entry_price == -1 or actual_entry_price is None: # most probably we are facing slippage issues. Sometimes for uncelar reasons, get_entry_price_from_order_book() returns None
@@ -417,7 +399,7 @@ def webhook():
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, my_sl_vs_liq_gap_perc=sl_vs_liq_gap, 
                                                     my_mark_sl_vs_liq_gap_perc=mark_sl_vs_liq_gap,
                                                     notes=msg_is_debug_mode + '[Passed] The gap between stoploss and liquidation price is ' + str(mark_sl_vs_liq_gap) + '% LARGER than minimum threshold ' + str(config.LIQ_GAP_PERC) + '%.')
-        ############## END - if not config.DEBUG_SKIP_VALIDATION #################
+        ############## END - if not config.SKIP_VALIDATION #################
 
         # --- 9. Make sure your system is in Isolated Margin mode and setup the leverage ---
         config.exchange.set_isolated_margin(symbol=tradingview_alert['symbol'], leverage=leverage)
@@ -438,7 +420,7 @@ def webhook():
                     is_exception_found = True
                     retry_count += 1
                     msg = '[Issue] Order failed to execute due to this exception: ' + str(err)
-                    sleep(1)
+                    #sleep(config.SLEEP_SECONDS_FAST)
                     config.exchange.connect_to_exchange()
                 else:
                     is_exception_found = False
@@ -592,7 +574,7 @@ if __name__ == "__main__":
             config.run_ws_flag = False
         else:
             pass # Ignore. We don't have an active websocket
-    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=True) # Sometimes its better to set realoder to False. Re-loader 
+    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=False) # Sometimes its better to set realoder to False. Re-loader 
                                                                # is useful if you don't want to re-run local server after every change
                                                                # However, re-loadeder tends to double execute main() commands after 
                                                                # saving every code modification
