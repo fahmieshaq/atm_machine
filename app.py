@@ -574,7 +574,9 @@ if __name__ == "__main__":
             config.run_ws_flag = False
         else:
             pass # Ignore. We don't have an active websocket
-    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=False) # Sometimes its better to set realoder to False. Re-loader 
+    app.run(debug=config.FLASK_DEBUG_FLAG, use_reloader=False, host='0.0.0.0') # Sometimes its better to set realoder to False. Re-loader 
                                                                # is useful if you don't want to re-run local server after every change
                                                                # However, re-loadeder tends to double execute main() commands after 
-                                                               # saving every code modification
+                                                               # saving every code modification.
+                                                               # host='0.0.0.0' is required for production. It allows us to receive
+                                                               # external requests
