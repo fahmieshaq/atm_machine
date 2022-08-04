@@ -1,0 +1,1 @@
+sudo ntpdate -sb time.nist.gov
