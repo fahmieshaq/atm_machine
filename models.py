@@ -47,7 +47,7 @@ class TvAlert(db.Model):
     my_risk_amount = db.Column(db.Float, nullable=True)                     # Its the amount we want to risk
     my_be_rw_config = db.Column(db.Float, nullable=True)
     my_profit_rw_config = db.Column(db.Float, nullable=True)
-    my_executed_at = db.Column(db.DateTime, nullable=True)
+    my_executed_at = db.Column(db.DateTime, nullable=True)                  # The time we fired the API
     is_executed = db.Column(db.Boolean(), nullable=True)
     notes = db.Column(db.Text(), nullable=True)
     exg_executed_at = db.Column(db.DateTime, nullable=True)

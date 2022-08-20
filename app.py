@@ -77,6 +77,11 @@ def webhook():
         telegram_send.send(messages=[msg])
         return {'code': 'error', 'message': msg}
 
+    if tradingview_alert['command'] != config.EXECUTE_MARKET_ORDER:
+        msg = 'CRITICAL - Hold on! Something wrong with tradingview "command" alert value. ' + config.EXECUTE_MARKET_ORDER + ' is expected but you received ' + tradingview_alert['command'] + '.'
+        telegram_send.send(messages=[msg])
+        return {'code': 'error', 'message': msg}
+
     # If MY_DEBUG_MODE is True, you've to hardcode leverage, my_qty, and sl_price
     # Setting MY_DEBUG_MODE to True allows you to place market order by skipping all 
     # of the pre-order validations such as risk management calculations, etc. 
@@ -443,8 +448,9 @@ def webhook():
                         msg = '[Issue] Order failed. No clue why. You are at place_market_order(). order_response_number: ' + str(order_response_number)
         else:
             is_success = False
-            msg = 'CRITICAL - Hold on! Something wrong with tradingview "command" alert value. ' + config.EXECUTE_MARKET_ORDER + ' is expected. You are at place_market_order().'
-            telegram_send.send(messages=[msg])
+            # I moved the warning message up at the beginning of the code:
+            # msg = 'CRITICAL - Hold on! Something wrong with tradingview "command" alert value. ' + config.EXECUTE_MARKET_ORDER + ' is expected. You are at place_market_order().'
+            # telegram_send.send(messages=[msg])
 
 
         if is_success == True:
