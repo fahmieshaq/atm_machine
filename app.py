@@ -171,7 +171,7 @@ def webhook():
 
         # --- 1. determine risk amount ---
         available_balance = config.exchange.get_available_usdt_balance() # We need available balance to apply for risk management
-        if available_balance <= 0:
+        if int(available_balance) <= 0:
             msg = msg_is_debug_mode + '[Issue] get_available_usdt_balance() - No available balance.'
             models_utils.update_tradingview_alert(id=config.tvalert_id, is_executed=False, notes=msg, exg_avail_balance=available_balance)
             return {'code': 'error', 'message': msg}
