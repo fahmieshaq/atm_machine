@@ -1,0 +1,6 @@
+In bybit, go to https://www.bybit.com/data/basic/linear/contract-detail?symbol=SOLUSDT and then refer to open interest.
+You can refer to open interest as an indicator as to which trading pair is traded more. It is basically the number of open contracts.
+For example, if SOLUSDT has Open Interest of 1,293,762.70 and LTCUSDT has Open Interest of 298,634.30, it means SOLUSDT is more active
+than LTCUSDT.
+
+-----------------------------------
