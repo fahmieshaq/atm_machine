@@ -132,7 +132,6 @@ def check_profit_and_loss():
     today_balance = get_today_balance()
     current_pnl = accumulate_pnl_every_minute_daily()
     perc = (current_pnl * 100) / today_balance
-    perc=60
     if perc < 0:
         if abs(perc) >= pnl_config_obj.loss_perc_threshold:
             # if you remove "if is_received_notification_today_for_loss" line, you'll be bombarded with 
