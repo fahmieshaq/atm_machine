@@ -79,8 +79,8 @@ def check_and_sync_time(message):
         if exg_server_time == local_server_time: 
             msg='Great... Local time is synced with exchange server time! ' + msg_detail
         else:
-            msg='Nah! Local time is not syned with exchange server time! Call /sync to sync your local time with exchange time and login to your server to find out WHY your cron ' \
-                'job is not syncing time. /sync is just a temprary solution. Websockets do not work if time is out of sync. ' + msg_detail
+            msg='Nah! Local time is not syned with exchange server time! It should be auto-synced shortly in one minute or less. If unsync happens frequently, login to your server to find out WHY your cron ' \
+                'job is not syncing time. Rest API and Websockets tend not to work if time is out of sync. ' + msg_detail
 
     bot.send_message(message.chat.id, msg) # or you could call: bot.reply_to(message, msg)
 

@@ -17,6 +17,7 @@ Flask-Script = "^2.0.6"
 psutil = "^5.9.1"
 pyTelegramBotAPI = "^4.6.1"
 wheel = "^0.37.1"
+schedule = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
 

@@ -54,7 +54,6 @@ debug_sl_price_val=Decimal(0.0119955)  #Set it to 0 if you want to pick the actu
 # The moment you initiate the app, connect to the exchange
 config.exchange = ByBit()
 
-
 # This webhook receives tradingview alert json request. We process the json request and place an order in the exchange
 # This webhook takes one alert at a time only and it never processes an alert if we already have an open position. Also,
 # this webhook deals with one exchange only; it deals with the exchange that's defined here config.TARGET_EXCHANGE

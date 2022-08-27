@@ -105,3 +105,46 @@ class MyLogs(db.Model):
     
     def __repr__(self):
         return f'<MyLogs ID: {self.id}>'
+
+# This table is used by pnl_checker.py
+class AvailableBalance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    available_balance = db.Column(db.Float)
+    created_at = db.Column(db.DateTime)
+
+    def __init__(self, available_balance): 
+        self.available_balance = available_balance
+        self.created_at = datetime.strptime(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), '%Y-%m-%d %H:%M:%S')
+
+    # Allows us to update any field inside the model
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        db.session.commit()
+
+    def __repr__(self):
+        return f'<AvailableBalance ID: {self.id}>'
+
+# This table is used by pnl_checker.py. MyPnlConfig table is maintained manually by going to
+# pgAdmin and change the values there
+class MyPnlConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    symbol=db.Column(db.String(), nullable=True)
+    loss_perc_threshold=db.Column(db.Float, nullable=True)
+    profit_amount_threshold=db.Column(db.Float, nullable=True)
+
+    def __init__(self, symbol, loss_perc_threshold, profit_amount_threshold): 
+        self.symbol=symbol
+        self.loss_perc_threshold=loss_perc_threshold
+        self.profit_amount_threshold=profit_amount_threshold
+    
+    # Allows us to update any field inside the model
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        db.session.commit()
+
+    def __repr__(self):
+        return f'<MyPnlConfig ID: {self.id}>'
