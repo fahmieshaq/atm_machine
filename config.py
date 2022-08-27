@@ -1,6 +1,6 @@
 # Constants used across the application
 TARGET_EXCHANGE='BYBIT' # Decide what exchange does this program interacts with. This value should match the exchange name that we received from tradingview alert
-TESTNET_FLAG = True     # If True, the program connects to testnet. Otherwie, it connects to the live server (mainnet)
+TESTNET_FLAG = False     # If True, the program connects to testnet. Otherwie, it connects to the live server (mainnet)
 TESTNET_ENDPOINT = 'https://api-testnet.bybit.com'
 LIVE_ENDPOINT = 'https://api.bybit.com'
 RECV_WINDOW = 5000          # recv_window is in milliseconds and its used when connecting to the exchange's server via HTTP()
