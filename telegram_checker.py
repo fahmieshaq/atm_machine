@@ -22,15 +22,31 @@ def is_main_program_alive():
 
     return is_live
 
+def is_pnl_checker_alive():
+    is_live=False
+    main_program_filename='pnl_checker.py'
+    for process in psutil.process_iter():
+        if process.cmdline() == ['python', main_program_filename]:
+            is_live=True
+
+    return is_live
+
 # Send /check command from telegram channel to test the heartbeat of main app.py
 @bot.message_handler(commands=['check'])
 def check_main_program(message):
     app_status = is_main_program_alive()
+    pnl_checker_status = is_pnl_checker_alive()
     msg=''
     if app_status:
-        msg='The main atm_machine program app.py is alive'
+        msg='The main atm_machine program app.py is alive.\n\n'
     else:
-        msg='The main atm_machine program app.py is not working! Please run /boot command to revive it.'
+        msg='The main atm_machine program app.py is not working! Please run /boot command to revive the main program.\n\n'
+    
+    if pnl_checker_status:
+        msg=msg + 'The pnl_checker.py program is alive.'
+    else:
+        msg=msg + 'The pnl_checker.py program is not working.\n\nGo to the server and run python pnl_checker.py inside ' \
+                + 'a screen command. pnl_checker.py can not be revived via /boot'
 
     bot.send_message(message.chat.id, msg) # or you could call: bot.reply_to(message, msg)
 
