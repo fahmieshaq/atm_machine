@@ -164,7 +164,7 @@ def start_main():
     check_profit_and_loss()
 
 
-# Run the schedule
+# Run the schedule. Python is handling the scheduling.
 print('Begin start_main()')
 start_main()
 schedule.every(1).minutes.do(start_main) # Every 5 seconds: schedule.every(5).seconds.do(start_main)
