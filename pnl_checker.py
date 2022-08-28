@@ -72,8 +72,12 @@ def update_available_balance_once_a_day():
     if rec_object.created_at.strftime('%Y-%m-%d') < datetime.date.today().strftime('%Y-%m-%d'):
         is_received_notification_today_for_loss=False
         is_received_notification_today_for_profit=False
-        today_balance = session_auth.get_wallet_balance(coin="USDT").get('result').get('USDT').get('available_balance')
-        rec_object.update(available_balance=int(today_balance), 
+        try:
+            today_balance = session_auth.get_wallet_balance(coin="USDT").get('result').get('USDT').get('available_balance')
+        except Exception as e:
+            pass # don't do anything. We expect the next schedule to kick off soon anyway which will trigger the API again.
+        else: 
+            rec_object.update(available_balance=int(today_balance), 
                             created_at=datetime.datetime.strptime(datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), '%Y-%m-%d %H:%M:%S'))
 
 
@@ -89,6 +93,7 @@ def accumulate_pnl_every_minute_daily():
     global session_auth
 
     total_pnl=0.0
+    data=None
 
     # We only look for today's PNL
     start_time = int(datetime.datetime.combine(datetime.date.today(), datetime.time(00, 00, 00, 999999)).timestamp())
@@ -96,13 +101,18 @@ def accumulate_pnl_every_minute_daily():
 
     max_page_num=50
     for i in range(1, max_page_num):
-        data = session_auth.closed_profit_and_loss(
-            symbol=pnl_config_obj.symbol,
-            page=5,
-            limit=50,
-            start_time=start_time,
-            end_time=end_time
-        ).get('result').get('data')
+        try:
+            data = session_auth.closed_profit_and_loss(
+                symbol=pnl_config_obj.symbol,
+                page=i,
+                limit=50,
+                start_time=start_time,
+                end_time=end_time
+            ).get('result').get('data')
+        except Exception as e:
+            print(e)
+            data=None # don't do anything. We expect the next schedule to kick off soon anyway which will trigger the API again.
+            break
 
         if data is None:
             break
