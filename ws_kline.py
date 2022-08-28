@@ -200,7 +200,8 @@ def ws_kline_fun(symbol, stop_order_id, order_direction):
 
         # To subscribe to multiple symbols,
         # pass a list: ["BTCUSDT", "ETHUSDT"]
-        # pass an interval. Check https://bybit-exchange.github.io/docs/linear/#t-websocketkline
+        # pass an interval. Check https://bybit-exchange.github.io/docs/futuresV2/linear/#t-websocketkline
+        # Currently supported intervals 1 3 5 15 30 60 120 240 360 720 minutes, D, W, and M
         ws_linear.kline_stream(
             handle_message, symbol, "1"
         )

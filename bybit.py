@@ -434,17 +434,17 @@ class ByBit:
 
     # https://bybit-exchange.github.io/docs/linear/#t-querykline or https://bybit-exchange.github.io/docs/linear/#t-markpricekline
     # previous_candle_index = 1 refers to current candle
-    # Warning: get_1_min_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_1_min_candle_info()
+    # Warning: get_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_candle_info()
     # you have to test it in live environment not testnet; for testing it in live server, just go to TESTNET_FLAG and set it to False
-    def get_1_min_candle_info(self, symbol, previous_candle_index):
+    def get_candle_info(self, symbol, previous_candle_index, timeframe):
         current_date = datetime.utcnow()
         last_min = current_date - timedelta(minutes=previous_candle_index) # previous_candle_index = 1 refers to current candle
         last_min_ts = datetime.timestamp(last_min.replace(microsecond=0, tzinfo=timezone.utc))
 
-        # Interval parameter refers to enum: 1 3 5 15 30 60 120 240 360 720 "D" "M" "W". For example, 720 refers to minutes worth of 12hrs
+        # timeframe is an Interval parameter refers to enum: 1 3 5 15 30 60 120 240 360 720 "D" "M" "W". For example, 720 refers to minutes worth of 12hrs
         # Limit parameter refers to data size. Limit has a max size is 200. Default as showing 200 pieces of data
-        # Get ByBit platform (last traded) price
-        candle = self.session.query_kline(symbol=symbol, interval="1", limit=1, from_time=last_min_ts).get('result')
+        # This API gets ByBit platform (last traded) price
+        candle = self.session.query_kline(symbol=symbol, interval=timeframe, limit=1, from_time=last_min_ts).get('result')
 
         open_price = candle[0].get('open')
         close_price = candle[0].get('close')
@@ -455,7 +455,7 @@ class ByBit:
 
         # Get symbol's mark price. Mark price reflects the real-time spot price on the major exchanges. We need mark price 
         # We'll use mark price to determine whether our SL mark price > liq price given that liq price is mark price.
-        candle_for_mark_price = self.session.query_mark_price_kline(symbol=symbol, interval="1", limit=1, from_time=last_min_ts).get('result')
+        candle_for_mark_price = self.session.query_mark_price_kline(symbol=symbol, interval=timeframe, limit=1, from_time=last_min_ts).get('result')
         open_mark_price = candle_for_mark_price[0].get('open')
         close_mark_price = candle_for_mark_price[0].get('close')
         high_mark_price = candle_for_mark_price[0].get('high')

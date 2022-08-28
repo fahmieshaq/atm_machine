@@ -197,11 +197,13 @@ def webhook():
             # You can go back as many candles as you want by inserting the candle index in the previous_candle_index parameter.
             # sl_price first return value gives you the middle of the candle between open and close.
             # is_candle_green refers to the candle of our previous_candle_index value.
-            # Warning: get_1_min_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_1_min_candle_info()
+            # Warning: get_candle_info() works well in mainnet (live server); it does not work well in testnet. To test get_candle_info()
             # you have to test it in live environment not testnet; for testing it in live server, just go to TESTNET_FLAG and set it to False
             # We return one candle ONLY candle that is positioned in SL_CANDLE_IDX
+            # timeframe is an Interval parameter refers to enum: 1 3 5 15 30 60 120 240 360 720 "D" "M" "W". For example, 1 means 1 minute and 720 refers 
+            # to minutes worth of 12hrs
             mid_price, open, close, high, low, is_candle_green, \
-            mid_mprice, open_m, close_m, high_m, low_m, is_candle_green_m = config.exchange.get_1_min_candle_info(symbol=tradingview_alert['symbol'], previous_candle_index=config.SL_CANDLE_IDX)
+            mid_mprice, open_m, close_m, high_m, low_m, is_candle_green_m = config.exchange.get_candle_info(symbol=tradingview_alert['symbol'], previous_candle_index=config.SL_CANDLE_IDX, timeframe="1")
 
             # we only use sl_mark_price later on to check if our sl_mark_price hits before liquidation price or not; sl_mark_price has no other use. For rest of
             # risk management calculations, we use sl_price that is bybit platform's last traded stoploss price. To know more about ticks_buffer, go to determine_sl
