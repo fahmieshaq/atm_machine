@@ -47,7 +47,7 @@ app.app_context().push() # its required for insert and update to work properly
 pnl_config_obj = None 
 is_received_notification_today_for_loss=False   # You only want to receive the alert once per day.
 is_received_notification_today_for_profit=False # You only want to receive the alert once per day.
-
+session_auth=None
 
 # You have to sync time via WSL command: $ sudo ntpdate -sb time.nist.gov
 if(config.TESTNET_FLAG):
@@ -63,6 +63,7 @@ def read_config_values_from_db():
 
 
 def update_available_balance_once_a_day():
+    global session_auth
     global is_received_notification_today_for_loss
     global is_received_notification_today_for_profit
     
@@ -85,6 +86,8 @@ def get_today_balance():
 
 
 def accumulate_pnl_every_minute_daily():
+    global session_auth
+
     total_pnl=0.0
 
     # We only look for today's PNL
