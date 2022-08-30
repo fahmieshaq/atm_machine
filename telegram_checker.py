@@ -7,6 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 import time
 from pybit.usdt_perpetual import HTTP
+import schedule
 
 API_KEY=keys.TELEGRAM_API_KEY
 
@@ -107,7 +108,6 @@ def check_and_sync_time(message):
 # connction to come back up indefinitely as per my testing. Once the internet is back
 # infinity_polling() will continue listening as usual. I tried to wrap infinity_polling()
 # in try/catch just to beautify the dump a little bit, the exception wasn't caught. Thus,
-# it was pointless to add try/catch, I removed it. 
+# it was pointless to add try/catch, I removed it.
+print('Begin telegram bot listener bot.infinity_polling()')
 bot.infinity_polling()
-
-
